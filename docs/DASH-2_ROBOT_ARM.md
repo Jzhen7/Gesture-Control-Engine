@@ -4,7 +4,8 @@
 > made building it. Read [Dash 1](DASH-1_CPP_REVAMP.md) first for C++ basics.
 > Planned arm features are in [FUTURE_FEATURES.md](FUTURE_FEATURES.md).
 
-**Status:** milestone 1 (MVP) is implemented and tested in simulation.
+**Status:** milestone 1 (MVP) is complete: implemented, tested in simulation,
+and run live with a webcam on Windows 11 (MSVC 2022, OpenCV 4.10, about 28 fps).
 
 **The rules of the MVP:**
 
@@ -301,5 +302,7 @@ These can all be changed. Most are one line in `config/arm.ini`.
   "Clutch" mode (move, release, reposition) is planned.
 - The simulated gripper has no objects to pick up yet (a pick-and-place scene
   is planned).
-- Not yet tested with a live camera on your machine; all tests are automated
-  or simulated.
+- Live-camera testing so far is a start-up check: camera, model and
+  calibration work at about 28 fps (29 ms inference) on a laptop webcam.
+  How it *feels* to steer (sensitivity, depth range, speed limit) still needs
+  hands-on tuning in `config/arm.ini`.

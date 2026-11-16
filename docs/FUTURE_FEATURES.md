@@ -28,9 +28,10 @@ use them.
 
 ## Robot arm
 
-### 🟢 Milestone 1: arm mimics the hand (MVP)
+### ✅ Milestone 1: arm mimics the hand (MVP)
 
-> **Status:** implemented and passing simulation tests; awaiting review. How it works: [Dash 2](DASH-2_ROBOT_ARM.md).
+> **Status:** done: passing simulation tests and run live on Windows; awaiting review (PR #6). How it works: [Dash 2](DASH-2_ROBOT_ARM.md).
+> Delivered as one PR rather than the four below, and documented in `docs/DASH-2_ROBOT_ARM.md` instead of `docs/arm/`. The demo GIF is still to do: it needs a screen recording of someone using it.
 
 The smallest useful version: the arm follows the hand and the gripper follows
 the fist.
