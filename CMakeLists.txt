@@ -79,6 +79,43 @@ add_library(ht_arm STATIC
 target_link_libraries(ht_arm PUBLIC ht_core PRIVATE ht_warnings)
 
 # ---------------------------------------------------------------------------
+# ht_arm_mujoco: simulated SO-101 arm. Built automatically when MuJoCo is
+# present (scripts/download_arm.* puts it in third_party/mujoco).
+# ---------------------------------------------------------------------------
+set(MUJOCO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/mujoco" CACHE PATH
+    "MuJoCo release folder (contains include/ and lib/)")
+find_path(MUJOCO_INCLUDE_DIR mujoco/mujoco.h PATHS "${MUJOCO_DIR}/include" NO_DEFAULT_PATH)
+find_library(MUJOCO_LIBRARY NAMES mujoco PATHS "${MUJOCO_DIR}/lib" NO_DEFAULT_PATH)
+set(HT_HAS_MUJOCO OFF)
+if(MUJOCO_INCLUDE_DIR AND MUJOCO_LIBRARY)
+  set(HT_HAS_MUJOCO ON)
+  add_library(mujoco::mujoco SHARED IMPORTED)
+  set_target_properties(mujoco::mujoco PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${MUJOCO_INCLUDE_DIR}")
+  if(WIN32)
+    set(MUJOCO_DLL "${MUJOCO_DIR}/bin/mujoco.dll")
+    set_target_properties(mujoco::mujoco PROPERTIES
+      IMPORTED_IMPLIB "${MUJOCO_LIBRARY}" IMPORTED_LOCATION "${MUJOCO_DLL}")
+  else()
+    set_target_properties(mujoco::mujoco PROPERTIES IMPORTED_LOCATION "${MUJOCO_LIBRARY}")
+  endif()
+
+  add_library(ht_arm_mujoco STATIC src/arm/mujoco_arm.cpp)
+  target_link_libraries(ht_arm_mujoco PUBLIC ht_arm mujoco::mujoco PRIVATE ht_warnings)
+  message(STATUS "MuJoCo found in ${MUJOCO_DIR}: building the simulated arm")
+else()
+  message(STATUS "MuJoCo not found in ${MUJOCO_DIR}: skipping the simulated arm "
+                 "(run scripts/download_arm.ps1 or .sh to enable it)")
+endif()
+
+# Windows finds DLLs next to the .exe; copy mujoco.dll there.
+function(ht_copy_mujoco_dll target)
+  if(HT_HAS_MUJOCO AND WIN32)
+    add_custom_command(TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MUJOCO_DLL}" $<TARGET_FILE_DIR:${target}>)
+  endif()
+endfunction()
+
+# ---------------------------------------------------------------------------
 # Vision pipeline + application (OpenCV)
 # ---------------------------------------------------------------------------
 if(HT_BUILD_APP)

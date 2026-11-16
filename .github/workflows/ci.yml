@@ -31,7 +31,7 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
 
   linux-full:
-    name: Full build + smoke test (Linux, OpenCV)
+    name: Full build + smoke test (Linux, OpenCV, MuJoCo)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -56,11 +56,13 @@ jobs:
             -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DWITH_FFMPEG=OFF -DWITH_GTK=OFF -DWITH_QT=OFF
           cmake --build opencv-build
           cmake --install opencv-build
+      - name: Download arm simulator (MuJoCo + SO-101 model)
+        run: sh scripts/download_arm.sh
       - name: Configure
         run: cmake -S . -B build -G Ninja -DHT_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=$HOME/opencv-install/lib/cmake/opencv4
       - name: Build
         run: cmake --build build
-      - name: Unit tests
+      - name: Unit + simulation tests
         run: ctest --test-dir build --output-on-failure
       - name: Download models
         run: sh scripts/download_models.sh
@@ -84,7 +86,7 @@ jobs:
           if-no-files-found: ignore
 
   windows-full:
-    name: Full build + smoke test (Windows, OpenCV)
+    name: Full build + smoke test (Windows, OpenCV, MuJoCo)
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v5
@@ -97,11 +99,14 @@ jobs:
           "OpenCV_DIR=$($cfg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           $bin = Get-ChildItem C:\tools\opencv -Recurse -Filter "opencv_world*.dll" | Select-Object -First 1
           $bin.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Download arm simulator (MuJoCo + SO-101 model)
+        shell: pwsh
+        run: ./scripts/download_arm.ps1
       - name: Configure
         run: cmake -S . -B build -DHT_WARNINGS_AS_ERRORS=ON
       - name: Build
         run: cmake --build build --config Release --parallel
-      - name: Unit tests
+      - name: Unit + simulation tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Download models
         shell: pwsh
