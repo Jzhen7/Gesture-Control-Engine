@@ -56,6 +56,18 @@ target_link_libraries(ht_core PUBLIC Threads::Threads PRIVATE ht_warnings)
 target_compile_definitions(ht_core PUBLIC HT_VERSION="${PROJECT_VERSION}")
 
 # ---------------------------------------------------------------------------
+# ht_platform: OS integration (volume, brightness, input injection, processes)
+# ---------------------------------------------------------------------------
+if(WIN32)
+  add_library(ht_platform STATIC src/platform/win32_system_control.cpp)
+  target_compile_definitions(ht_platform PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
+  target_link_libraries(ht_platform PRIVATE ole32 oleaut32 dxva2 user32 shell32)
+else()
+  add_library(ht_platform STATIC src/platform/null_system_control.cpp)
+endif()
+target_link_libraries(ht_platform PUBLIC ht_core PRIVATE ht_warnings)
+
+# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 if(HT_BUILD_TESTS)
