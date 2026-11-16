@@ -56,6 +56,18 @@ bool parseFloat(std::string_view v, float& out) {
   return true;
 }
 
+/// "x y z" (spaces and/or commas).
+bool parseVec3(std::string_view v, Vec3& out) {
+  std::string s(v);
+  std::replace(s.begin(), s.end(), ',', ' ');
+  std::istringstream in(s);
+  float x = 0, y = 0, z = 0;
+  std::string extra;
+  if (!(in >> x >> y >> z) || (in >> extra)) return false;
+  out = {x, y, z};
+  return true;
+}
+
 bool parseInt(std::string_view v, int& out) {
   const auto* first = v.data();
   const auto* last = v.data() + v.size();
@@ -225,6 +237,25 @@ class Parser {
       if (key == "pinch_off") return f(cfg_.mouse.pinchOff);
       if (key == "min_cutoff") return d(cfg_.mouse.minCutoff);
       if (key == "beta") return d(cfg_.mouse.beta);
+    } else if (sec == "arm") {
+      auto& a = cfg_.arm;
+      auto v3 = [&](Vec3& out) { return number(v, out, parseVec3, ln); };
+      if (key == "model") return a.model = std::string(v), true;
+      if (key == "range_x") return f(a.hand.rangeX);
+      if (key == "range_y") return f(a.hand.rangeY);
+      if (key == "depth_range") return f(a.hand.depthRange);
+      if (key == "workspace_min") return v3(a.workspaceMin);
+      if (key == "workspace_max") return v3(a.workspaceMax);
+      if (key == "calibration_ms") return d(a.calibrationMs);
+      if (key == "calibration_max_motion") return f(a.calibrationMaxMotion);
+      if (key == "min_cutoff") return d(a.minCutoff);
+      if (key == "beta") return d(a.beta);
+      if (key == "max_speed") return f(a.maxSpeed);
+      if (key == "gripper_open") return f(a.gripperOpen);
+      if (key == "gripper_closed") return f(a.gripperClosed);
+      if (key == "ik_iterations") return i(a.ikIterations);
+      if (key == "ik_damping") return f(a.ikDamping);
+      if (key == "ik_null_gain") return f(a.ikNullGain);
     }
     return false;
   }

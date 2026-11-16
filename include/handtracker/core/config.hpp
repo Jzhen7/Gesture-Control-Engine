@@ -12,6 +12,8 @@
 #include "handtracker/core/actions.hpp"
 #include "handtracker/core/filters.hpp"
 #include "handtracker/core/gesture.hpp"
+#include "handtracker/core/hand_space.hpp"
+#include "handtracker/core/landmarks.hpp"
 #include "handtracker/core/temporal.hpp"
 
 namespace ht {
@@ -61,6 +63,26 @@ struct MouseConfig {
   double beta = 0.02;
 };
 
+/// Robot-arm front-end settings ([arm] section, normally in config/arm.ini).
+struct ArmSettings {
+  std::string model = "models/so101/scene.xml";  ///< MuJoCo scene file.
+  HandSpaceConfig hand;                         ///< How far the hand moves to cover the workspace.
+  /// Reachable box in the arm's base frame (metres; X forward, Y left, Z up).
+  /// Defaults were checked in simulation: every point is reachable within 0.1 mm.
+  Vec3 workspaceMin{0.17f, -0.13f, 0.06f};
+  Vec3 workspaceMax{0.31f, 0.13f, 0.24f};
+  double calibrationMs = 2000.0;    ///< How long to hold the open palm when calibrating.
+  float calibrationMaxMotion = 0.05f;
+  double minCutoff = 1.0;           ///< One Euro filter on the target (Hz).
+  double beta = 5.0;                ///< One Euro speed coefficient (target in metres).
+  float maxSpeed = 0.6f;            ///< Fastest the target may move, metres/second.
+  float gripperOpen = 1.2f;         ///< Jaw joint angle (radians) for "open".
+  float gripperClosed = 0.0f;       ///< Jaw joint angle (radians) for "closed".
+  int ikIterations = 10;            ///< IK refinement steps per frame.
+  float ikDamping = 0.05f;          ///< IK damping: higher = smoother near singularities.
+  float ikNullGain = 0.05f;         ///< Pull toward the ready pose with the arm's spare freedom.
+};
+
 struct AppConfig {
   CameraConfig camera;
   ModelConfig models;
@@ -70,6 +92,7 @@ struct AppConfig {
   TemporalConfig temporal;
   ModeConfig modes;
   MouseConfig mouse;
+  ArmSettings arm;
   std::vector<Binding> bindings;
 };
 

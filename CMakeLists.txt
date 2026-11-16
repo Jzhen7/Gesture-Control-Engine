@@ -46,6 +46,7 @@ add_library(ht_core STATIC
   src/core/controller.cpp
   src/core/filters.cpp
   src/core/gesture.cpp
+  src/core/hand_space.cpp
   src/core/landmarks.cpp
   src/core/mapping.cpp
   src/core/mouse_controller.cpp
@@ -67,6 +68,15 @@ else()
   add_library(ht_platform STATIC src/platform/null_system_control.cpp)
 endif()
 target_link_libraries(ht_platform PUBLIC ht_core PRIVATE ht_warnings)
+
+# ---------------------------------------------------------------------------
+# ht_arm: robot-arm front-end logic (hand -> workspace target, gripper rule).
+# No third-party deps, so it is always built and tested.
+# ---------------------------------------------------------------------------
+add_library(ht_arm STATIC
+  src/arm/arm_controller.cpp
+  src/arm/workspace.cpp)
+target_link_libraries(ht_arm PUBLIC ht_core PRIVATE ht_warnings)
 
 # ---------------------------------------------------------------------------
 # Vision pipeline + application (OpenCV)
@@ -92,15 +102,16 @@ if(HT_BUILD_APP)
     apps/orientation_app.cpp)
   target_link_libraries(handtracker PRIVATE ht_vision ht_platform ht_warnings)
 
-  # Ship the default config next to the binary so it runs from the build tree.
+  # Ship the default configs next to the binary so it runs from the build tree.
   add_custom_command(TARGET handtracker POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:handtracker>/config
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_CURRENT_SOURCE_DIR}/config/handtracker.ini
-            $<TARGET_FILE_DIR:handtracker>/config/handtracker.ini)
+            ${CMAKE_CURRENT_SOURCE_DIR}/config/arm.ini
+            $<TARGET_FILE_DIR:handtracker>/config/)
 
   install(TARGETS handtracker RUNTIME DESTINATION bin)
-  install(FILES config/handtracker.ini DESTINATION bin/config)
+  install(FILES config/handtracker.ini config/arm.ini DESTINATION bin/config)
 endif()
 
 # ---------------------------------------------------------------------------
