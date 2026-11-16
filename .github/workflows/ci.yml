@@ -29,3 +29,83 @@ jobs:
         run: cmake --build build --config Release --parallel
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+  linux-full:
+    name: Full build + smoke test (Linux, OpenCV)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenCV
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libopencv-dev ninja-build
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DHT_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Download models
+        run: sh scripts/download_models.sh
+      - name: Download test images
+        # Apache-2.0 test images published by the MediaPipe project.
+        run: |
+          mkdir -p testimg
+          for f in victory thumb_up; do
+            curl -fsSL -o testimg/$f.jpg https://storage.googleapis.com/mediapipe-assets/$f.jpg
+          done
+      - name: End-to-end smoke test on real hand photos
+        run: |
+          ./build/handtracker --version
+          ./build/handtracker --image testimg/victory.jpg  --output victory.annotated.png  --expect-hands 1 --expect-gesture peace
+          ./build/handtracker --image testimg/thumb_up.jpg --output thumb_up.annotated.png --expect-hands 1 --expect-gesture one
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-linux
+          path: "*.annotated.png"
+          if-no-files-found: ignore
+
+  windows-full:
+    name: Full build + smoke test (Windows, OpenCV)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenCV
+        run: choco install opencv -y --no-progress
+      - name: Locate OpenCV
+        shell: pwsh
+        run: |
+          $cfg = Get-ChildItem C:\tools\opencv -Recurse -Filter OpenCVConfig.cmake | Select-Object -First 1
+          "OpenCV_DIR=$($cfg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $bin = Get-ChildItem C:\tools\opencv -Recurse -Filter "opencv_world*.dll" | Select-Object -First 1
+          $bin.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Configure
+        run: cmake -S . -B build -DHT_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Download models
+        shell: pwsh
+        run: ./scripts/download_models.ps1
+      - name: Download test images
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force testimg | Out-Null
+          foreach ($f in "victory", "thumb_up") {
+            Invoke-WebRequest "https://storage.googleapis.com/mediapipe-assets/$f.jpg" -OutFile "testimg/$f.jpg"
+          }
+      - name: End-to-end smoke test on real hand photos
+        shell: pwsh
+        run: |
+          $exe = "./build/Release/handtracker.exe"
+          & $exe --version
+          & $exe --image testimg/victory.jpg --output victory.annotated.png --expect-hands 1 --expect-gesture peace
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --image testimg/thumb_up.jpg --output thumb_up.annotated.png --expect-hands 1 --expect-gesture one
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-windows
+          path: "*.annotated.png"
+          if-no-files-found: ignore

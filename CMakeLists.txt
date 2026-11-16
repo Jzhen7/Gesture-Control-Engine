@@ -83,6 +83,24 @@ if(HT_BUILD_APP)
   # SYSTEM: don't let warnings inside OpenCV's headers fail -Werror builds.
   target_include_directories(ht_vision SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
   target_link_libraries(ht_vision PUBLIC ht_core ${OpenCV_LIBS} PRIVATE ht_warnings)
+
+  add_executable(handtracker
+    apps/main.cpp
+    apps/app_runner.cpp
+    apps/control_app.cpp
+    apps/mouse_app.cpp
+    apps/orientation_app.cpp)
+  target_link_libraries(handtracker PRIVATE ht_vision ht_platform ht_warnings)
+
+  # Ship the default config next to the binary so it runs from the build tree.
+  add_custom_command(TARGET handtracker POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:handtracker>/config
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/config/handtracker.ini
+            $<TARGET_FILE_DIR:handtracker>/config/handtracker.ini)
+
+  install(TARGETS handtracker RUNTIME DESTINATION bin)
+  install(FILES config/handtracker.ini DESTINATION bin/config)
 endif()
 
 # ---------------------------------------------------------------------------
