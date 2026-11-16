@@ -80,9 +80,10 @@ double MujocoArm::solveIk(const Vec3& target, std::vector<double>& jointsOut) co
   //   J       = how the fingertip moves per joint (3 x 4 Jacobian, from MuJoCo)
   //   dq      = J^T (J J^T + lambda^2 I)^-1 e           (joint change that best reduces e)
   // The damping lambda keeps steps sane near singular (fully stretched) poses.
-  const int nv = model_->nv;
+  const int nv = static_cast<int>(model_->nv);  // mjtSize is 64-bit in MuJoCo 3.x
   std::vector<mjtNum> jacp(static_cast<std::size_t>(3 * nv));
-  for (int k = 0; k < model_->nq; ++k) scratch_->qpos[k] = data_->qpos[k];
+  const int nq = static_cast<int>(model_->nq);
+  for (int k = 0; k < nq; ++k) scratch_->qpos[k] = data_->qpos[k];
 
   const double lambda2 = static_cast<double>(settings_.ikDamping) * settings_.ikDamping;
   double errNorm = 0.0;
