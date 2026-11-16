@@ -162,9 +162,10 @@ int main(int argc, char** argv) {
   try {
     tracker = std::make_unique<ht::vision::HandTracker>(cfg.models);
   } catch (const std::exception& e) {
-    std::cerr << "error: " << e.what() << "\n"
-              << "Models not found? Run scripts/download_models.ps1 (Windows) or\n"
-              << "scripts/download_models.sh (Linux/macOS), or pass --models <dir>.\n";
+    std::cerr << "error: could not load the hand models: " << e.what() << "\n"
+              << "  - Missing files? Run scripts/download_models.ps1 (Windows) or\n"
+              << "    scripts/download_models.sh (Linux/macOS), or pass --models <dir>.\n"
+              << "  - ONNX import errors usually mean OpenCV is older than 4.7.\n";
     return 2;
   }
 

@@ -20,9 +20,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2022, macos-14]
+        os: [ubuntu-24.04, windows-2022, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure
         run: cmake -S . -B build -DHT_BUILD_APP=OFF -DHT_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -34,11 +34,30 @@ jobs:
     name: Full build + smoke test (Linux, OpenCV)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Install OpenCV
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libopencv-dev ninja-build
+      - uses: actions/checkout@v5
+      # Ubuntu's packaged OpenCV (4.6) can't import the models' Clip/ReLU6
+      # nodes, so build a minimal, cached OpenCV with just the modules we use.
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Cache OpenCV
+        id: opencv-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/opencv-install
+          key: opencv-4.10.0-minimal-${{ runner.os }}-v1
+      - name: Build OpenCV
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL https://github.com/opencv/opencv/archive/refs/tags/4.10.0.tar.gz | tar xz
+          cmake -S opencv-4.10.0 -B opencv-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=$HOME/opencv-install \
+            -DBUILD_LIST=core,imgproc,imgcodecs,highgui,videoio,dnn \
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF \
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DWITH_FFMPEG=OFF -DWITH_GTK=OFF -DWITH_QT=OFF
+          cmake --build opencv-build
+          cmake --install opencv-build
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DHT_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G Ninja -DHT_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=$HOME/opencv-install/lib/cmake/opencv4
       - name: Build
         run: cmake --build build
       - name: Unit tests
@@ -68,7 +87,7 @@ jobs:
     name: Full build + smoke test (Windows, OpenCV)
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install OpenCV
         run: choco install opencv -y --no-progress
       - name: Locate OpenCV

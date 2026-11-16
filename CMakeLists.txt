@@ -72,7 +72,7 @@ target_link_libraries(ht_platform PUBLIC ht_core PRIVATE ht_warnings)
 # Vision pipeline + application (OpenCV)
 # ---------------------------------------------------------------------------
 if(HT_BUILD_APP)
-  find_package(OpenCV 4.5 REQUIRED COMPONENTS core imgproc imgcodecs highgui videoio dnn)
+  find_package(OpenCV 4.7 REQUIRED COMPONENTS core imgproc imgcodecs highgui videoio dnn)
   message(STATUS "Using OpenCV ${OpenCV_VERSION} from ${OpenCV_DIR}")
 
   add_library(ht_vision STATIC
