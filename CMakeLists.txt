@@ -14,6 +14,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+option(HT_BUILD_APP   "Build the camera application and vision pipeline (requires OpenCV)" ON)
 option(HT_BUILD_TESTS "Build the unit tests" ON)
 option(HT_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
@@ -66,6 +67,23 @@ else()
   add_library(ht_platform STATIC src/platform/null_system_control.cpp)
 endif()
 target_link_libraries(ht_platform PUBLIC ht_core PRIVATE ht_warnings)
+
+# ---------------------------------------------------------------------------
+# Vision pipeline + application (OpenCV)
+# ---------------------------------------------------------------------------
+if(HT_BUILD_APP)
+  find_package(OpenCV 4.5 REQUIRED COMPONENTS core imgproc imgcodecs highgui videoio dnn)
+  message(STATUS "Using OpenCV ${OpenCV_VERSION} from ${OpenCV_DIR}")
+
+  add_library(ht_vision STATIC
+    src/vision/hand_landmarker.cpp
+    src/vision/hand_tracker.cpp
+    src/vision/palm_detector.cpp
+    src/ui/overlay.cpp)
+  # SYSTEM: don't let warnings inside OpenCV's headers fail -Werror builds.
+  target_include_directories(ht_vision SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(ht_vision PUBLIC ht_core ${OpenCV_LIBS} PRIVATE ht_warnings)
+endif()
 
 # ---------------------------------------------------------------------------
 # Tests
