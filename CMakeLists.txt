@@ -138,6 +138,12 @@ if(HT_BUILD_APP)
     apps/mouse_app.cpp
     apps/orientation_app.cpp)
   target_link_libraries(handtracker PRIVATE ht_vision ht_platform ht_warnings)
+  if(HT_HAS_MUJOCO)
+    target_sources(handtracker PRIVATE apps/arm_app.cpp apps/arm_view.cpp)
+    target_link_libraries(handtracker PRIVATE ht_arm_mujoco)
+    target_compile_definitions(handtracker PRIVATE HT_HAS_ARM=1)
+    ht_copy_mujoco_dll(handtracker)
+  endif()
 
   # Ship the default configs next to the binary so it runs from the build tree.
   add_custom_command(TARGET handtracker POST_BUILD

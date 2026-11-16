@@ -101,6 +101,7 @@ int runCamera(App& app, vision::HandTracker& tracker, const AppConfig& cfg,
       pinned = true;
     }
     if (key == 'q' || key == 27) break;
+    if (key != 255) app.onKey(key);
     if (cv::getWindowProperty(windowTitle, cv::WND_PROP_VISIBLE) < 1) break;
   }
 
