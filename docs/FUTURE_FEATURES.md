@@ -30,6 +30,8 @@ use them.
 
 ### 🟢 Milestone 1: arm mimics the hand (MVP)
 
+> **Status:** implemented and passing simulation tests; awaiting review. How it works: [Dash 2](DASH-2_ROBOT_ARM.md).
+
 The smallest useful version: the arm follows the hand and the gripper follows
 the fist.
 

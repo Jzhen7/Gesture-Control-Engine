@@ -80,6 +80,26 @@ scripts/download_models.sh
 
 Grant the terminal camera access when prompted. OS actions are logged only.
 
+## Robot-arm front-end (MuJoCo)
+
+The arm needs MuJoCo and the SO-101 model. Download both, then re-run CMake:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\download_arm.ps1   # Windows
+```
+```sh
+scripts/download_arm.sh                                              # Linux
+```
+
+This puts MuJoCo 3.17.0 in `third_party/mujoco` and the model in
+`models/so101` (both git-ignored). CMake detects MuJoCo automatically, builds
+`handtracker arm`, copies `mujoco.dll` next to the executable on Windows, and
+adds the headless simulation tests (`ht_arm_sim_tests`). Without MuJoCo,
+everything else still builds. To use a MuJoCo installed elsewhere, pass
+`-DMUJOCO_DIR=<path>`.
+
+macOS: MuJoCo ships as a `.dmg` framework, which the script doesn't handle yet.
+
 ## Core library and tests only (no OpenCV)
 
 ```sh

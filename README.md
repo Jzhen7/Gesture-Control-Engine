@@ -1,77 +1,116 @@
 # Hand Tracker (C++)
 
-Control your computer with hand gestures from an ordinary webcam: skip Spotify
-tracks with a swipe, switch windows by flipping your hand, dial the volume by
-tilting your palm, set screen brightness by raising your hand, or drive the
-mouse cursor and click with a pinch.
+Real-time hand tracking from an ordinary webcam, with two front-ends built on
+the same engine:
+
+| 🖥️ **Desktop** | 🦾 **Robot arm** |
+|---|---|
+| Control your computer with gestures: skip Spotify tracks with a swipe, switch windows by flipping your hand, dial the volume by tilting your palm, set brightness by raising your hand, or drive the mouse and click with a pinch. | A simulated **SO-101** robot arm (MuJoCo physics) follows your hand anywhere in 3D, and its gripper closes when you make a fist. |
+| `handtracker desktop` | `handtracker arm` |
 
 This is **v2**, a ground-up C++17 rewrite of the original Python prototype
 ([Jzhen7/Hand-Tracker](https://github.com/Jzhen7/Hand-Tracker)). It keeps every
 v1 feature, fixes most of v1's reliability problems, and is structured so that
-new gestures, actions and platforms can be added without touching the core loop.
+new front-ends, gestures and platforms can be added without touching the engine.
 
 [![CI](https://github.com/Jzhen7/Hand-Tracker-CPP/actions/workflows/ci.yml/badge.svg)](https://github.com/Jzhen7/Hand-Tracker-CPP/actions/workflows/ci.yml)
 
+**New to the codebase or to C++?** Start with
+[Dash 1: the C++ rewrite](docs/DASH-1_CPP_REVAMP.md) and
+[Dash 2: the robot arm](docs/DASH-2_ROBOT_ARM.md). They explain every
+decision, tool and design choice.
+
 ---
+
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    cam[Webcam] --> eng
+    subgraph eng["Engine (shared)"]
+      det[Palm detector + 21-point<br/>landmark model, OpenCV DNN] --> ges[Gestures + smoothing]
+      det --> pos[3D hand position<br/>calibrated depth]
+    end
+    ges --> desk[Desktop front-end<br/>bindings, modes, mouse]
+    desk --> os[(Windows: keys, media,<br/>volume, brightness, cursor)]
+    ges --> arm[Arm front-end<br/>workspace mapping, gripper]
+    pos --> arm
+    arm --> sim[(MuJoCo SO-101 simulation<br/>later: real arm)]
+```
+
+The engine never depends on a front-end, and the front-ends never depend on
+each other.
 
 ## Highlights
 
-- **One native binary, one dependency.** Runs MediaPipe's palm-detection and
-  hand-landmark networks through OpenCV's DNN module. No Python, no MediaPipe
-  build, no Bazel.
+**Engine**
+- **One native binary.** Runs MediaPipe's palm-detection and hand-landmark
+  networks through OpenCV's DNN module. No Python, no MediaPipe build, no Bazel.
 - **Rotation-, scale- and handedness-invariant gestures.** v1 only recognised
-  an upright right hand. v2 measures fingers relative to the hand itself.
-- **Time-based motion detection.** Swipes, flips and holds are measured in
-  milliseconds rather than frames, so they behave the same at 15 fps and 60 fps.
-  A cooldown and hold latching stop events from firing twice.
-- **Remappable gestures.** Every binding lives in
-  [`config/handtracker.ini`](config/handtracker.ini). Supported actions are key
-  chords, media keys, launching apps/URLs, mode switches and quit, and a binding
-  can be limited to when a given process (for example `spotify.exe`) is running.
-- **Non-blocking OS calls.** Volume, brightness and input injection run on a
-  worker thread that drops stale values. v1 froze the camera loop on every
-  brightness change.
+  an upright right hand.
 - **MediaPipe-style tracking.** Once a hand is found, the palm detector is
   skipped and the previous landmarks seed the next frame.
-- **Testable core.** Gesture logic, temporal detection, modes, config and filters
-  have no third-party dependencies and are covered by a unit test suite that
-  runs on Windows, Linux and macOS in CI.
+- **3D hand position** with depth estimated from apparent palm size, calibrated
+  per user.
+
+**Desktop front-end**
+- **Time-based motion detection.** Swipes, flips and holds are measured in
+  milliseconds, with a cooldown and latched holds.
+- **Remappable gestures** in [`config/handtracker.ini`](config/handtracker.ini):
+  key chords, media keys, launching apps/URLs, modes, and process-gated bindings
+  (e.g. only while `spotify.exe` runs).
+- **Non-blocking OS calls** on a worker thread (v1 froze on every brightness change).
+
+**Robot-arm front-end**
+- **MuJoCo physics** with the open-source **SO-101** arm model from MuJoCo Menagerie.
+- **Inverse kinematics** (damped least squares with a null-space bias) reaches
+  any point in a 14 × 26 × 18 cm workspace to within 1 cm (tested).
+- **Smooth and safe:** One Euro filtering, a speed limit, workspace clamping,
+  and the arm holds position when your hand leaves the frame.
+- **Backend interface**, so a real arm can replace the simulator without
+  touching the control logic.
+
+**Both:** unit tests plus headless simulation tests, run on Windows, Linux and
+macOS in CI.
 
 ## Quick start (Windows)
 
 ```powershell
 # 1. Prerequisites: Visual Studio 2022 (C++ workload), CMake >= 3.16, OpenCV >= 4.7
 #    e.g.  winget install Kitware.CMake   and   choco install opencv
-# 2. Build
+# 2. Fetch the hand models (~8 MB), and for the arm: MuJoCo + SO-101 model (~40 MB)
+powershell -ExecutionPolicy Bypass -File scripts\download_models.ps1
+powershell -ExecutionPolicy Bypass -File scripts\download_arm.ps1     # optional
+# 3. Build (the arm is included automatically if step 2's arm download ran)
 cmake -S . -B build -DOpenCV_DIR=C:/tools/opencv/build
 cmake --build build --config Release
-# 3. Fetch the models (~8 MB)
-powershell -ExecutionPolicy Bypass -File scripts\download_models.ps1
 # 4. Run (OpenCV's bin folder must be on PATH, or copy opencv_world*.dll next to the exe)
-build\Release\handtracker.exe
+build\Release\handtracker.exe desktop --dry-run
+build\Release\handtracker.exe arm
 ```
 
 Linux/macOS and other build options are covered in [docs/BUILDING.md](docs/BUILDING.md).
 
 ```text
-handtracker [control|mouse|orientation] [options]
+handtracker [command] [options]
 
-  control       gestures trigger actions (default)
+desktop front-end:
+  desktop       gestures trigger actions (default; 'control' also works)
   mouse         move the cursor with your hand, pinch to click
   orientation   visualise the 3D rotation of your hand
 
-  -c, --config <file>    config file (default: config/handtracker.ini)
+robot-arm front-end:
+  arm           a simulated SO-101 arm follows your hand; a fist closes the gripper
+
+  -c, --config <file>    config file (default: config/handtracker.ini, or config/arm.ini)
       --camera <index>   camera index
       --models <dir>     directory containing the .onnx models
-      --dry-run          log actions instead of performing them
+      --dry-run          log desktop actions instead of performing them
       --no-preview       run without the preview window
       --image <file>     run detection on a still image and exit
 ```
 
-Start with `--dry-run` to watch which gestures are recognised before giving the
-app control of your keyboard.
-
-## Default gestures
+## Desktop: default gestures
 
 Finger counts start at the thumb: **one** = thumb, **two** = thumb + index,
 **three** = thumb + index + middle, **four** = all but the pinky.
@@ -88,74 +127,77 @@ Finger counts start at the thumb: **one** = thumb, **two** = thumb + index,
 | three | flip hand over | switch window, `Alt+Tab` |
 | 🖕 middle | hold 1 s | quit |
 
-See [docs/GESTURES.md](docs/GESTURES.md) for the exact definitions and tips.
+Start with `--dry-run` to watch which gestures are recognised before giving the
+app control of your keyboard. See [docs/GESTURES.md](docs/GESTURES.md) for the
+exact definitions.
 
-## How it works
+## Robot arm: how to use it
 
-```mermaid
-flowchart LR
-    cam[Webcam frame] --> palm[Palm detector<br/>192×192 SSD]
-    palm --> lm[Landmark model<br/>21 points 224×224]
-    lm -- tracking --> lm
-    lm --> cls[Gesture classifier]
-    cls --> smooth[Majority smoother]
-    smooth --> ev[Event detector<br/>swipe · flip · hold]
-    ev --> ctl[Controller state machine<br/>bindings + modes]
-    ctl --> async[Async system control]
-    async --> os[(Volume · Brightness<br/>Keys · Mouse · Launch)]
-```
+1. Run `handtracker arm`. The camera shows on the left and the arm on the right.
+2. **Calibrate:** hold an open palm still for 2 s, where it feels comfortable.
+   That spot becomes the centre of the arm's workspace.
+3. Move your hand: left/right, up/down and toward/away from the camera move the
+   gripper the same way.
+4. Make a **fist** to close the gripper; open your hand to release.
+5. Keys: `c` recalibrate · `a`/`d` rotate the view · `q` quit.
 
-The design is described in detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Settings (workspace size, sensitivity, speed limit, gripper angles) are in
+[`config/arm.ini`](config/arm.ini). How it all works is in
+[Dash 2](docs/DASH-2_ROBOT_ARM.md).
 
 ## Project layout
 
 ```text
-include/handtracker/
-  core/       platform-independent logic (no third-party deps)
+include/handtracker/       (headers)   src/   (implementations)
+  core/       engine logic: landmarks, gestures, events, 3D hand position,
+              config, filters (no third-party deps)
   vision/     OpenCV DNN palm detector, landmark model, tracker
   ui/         on-frame overlay (skeleton, level bars, toasts)
-src/
-  core/ vision/ ui/
-  platform/   win32 backend (Core Audio, WMI, DDC/CI, SendInput) and a null backend
-apps/         the handtracker executable: control, mouse and orientation modes
-tests/        unit tests and synthetic hand generator
-config/       default configuration
-scripts/      model download scripts
-docs/         architecture, gestures, configuration, building, roadmap
+  arm/        arm front-end: ArmBackend interface, workspace, controller,
+              MuJoCo simulated arm with inverse kinematics
+src/platform/ Windows backend (Core Audio, WMI, DDC/CI, SendInput) + null backend
+apps/         the handtracker executable: desktop, mouse, orientation, arm
+tests/        unit tests, synthetic hand generator, headless simulation tests
+config/       handtracker.ini (desktop), arm.ini (robot arm)
+scripts/      download scripts for models and the arm simulator
+docs/         Dash 1 & 2 write-ups, architecture, gestures, config, building, roadmap
 ```
 
 ## What changed from v1
 
 | | v1 (Python) | v2 (C++) |
 |---|---|---|
-| Runtime | Python + MediaPipe + 10 pip packages | Single executable + OpenCV |
+| Runtime | Python + MediaPipe + 10 pip packages | Single executable + OpenCV (+ MuJoCo for the arm) |
 | Finger test | `tip.y < knuckle.y` (upright hands only) | distance ratios relative to the wrist (any rotation) |
 | Thumb test | `x` comparison, flips with handedness | distance to the pinky knuckle (either hand) |
 | Timing | frame counts ("~0.3 s at 20 fps") | milliseconds, plus cooldown and latched holds |
 | Hold | same label for 20 frames, even while moving | same gesture *and* hand kept still |
-| Bindings | hard-coded `if/elif` chain | INI file, process-gated, hot-swappable |
+| Bindings | hard-coded `if/elif` chain | INI file, process-gated |
 | OS calls | inline, blocking (brightness froze video) | worker thread, coalesced |
 | Modes | could only be left with an open palm | also time out when the hand disappears |
 | Mouse | raw position, hard-coded offsets, palm = drag | One Euro filtered, edge-clamped, pinch-to-click |
 | UI | three tkinter windows | overlay drawn on the preview |
-| Tests | none | unit tests + CI on 3 OSes + model smoke test |
-
-The full list of v1 limitations, plus what's still limited in v2 and where the
-project could go next, is in
-[docs/LIMITATIONS_AND_ROADMAP.md](docs/LIMITATIONS_AND_ROADMAP.md).
+| 3D / robotics | orientation readout only | calibrated 3D hand position driving a simulated arm |
+| Tests | none | unit + simulation tests, CI on 3 OSes, model smoke test |
 
 ## Documentation
 
-- [Building](docs/BUILDING.md)
-- [Gestures](docs/GESTURES.md)
-- [Configuration reference](docs/CONFIGURATION.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Limitations and roadmap](docs/LIMITATIONS_AND_ROADMAP.md)
-- [Future features](docs/FUTURE_FEATURES.md): robot arm plan and other upcoming work
+**Explanations (what was built and why)**
+- [Dash 1: the C++ rewrite](docs/DASH-1_CPP_REVAMP.md): decisions, tools, C++ primer
+- [Dash 2: the robot arm](docs/DASH-2_ROBOT_ARM.md): data flow, simulator, inverse kinematics
+
+**Reference**
+- [Building](docs/BUILDING.md) · [Gestures](docs/GESTURES.md) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
+
+**Planning**
+- [Future features](docs/FUTURE_FEATURES.md) · [Limitations and roadmap](docs/LIMITATIONS_AND_ROADMAP.md)
 - [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 ## License
 
-[MIT](LICENSE). The hand models are Google's MediaPipe models as converted by the
-[OpenCV Model Zoo](https://github.com/opencv/opencv_zoo) (Apache 2.0); they are
-downloaded separately and not part of this repository.
+[MIT](LICENSE). Third-party assets are downloaded separately and not part of
+this repository:
+- the hand models: Google's MediaPipe models as converted by the
+  [OpenCV Model Zoo](https://github.com/opencv/opencv_zoo) (Apache 2.0)
+- [MuJoCo](https://github.com/google-deepmind/mujoco) (Apache 2.0)
+- the SO-101 model from [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) (Apache 2.0)
