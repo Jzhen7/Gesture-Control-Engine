@@ -151,6 +151,7 @@ project could go next, is in
 - [Configuration reference](docs/CONFIGURATION.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Limitations and roadmap](docs/LIMITATIONS_AND_ROADMAP.md)
+- [Future features](docs/FUTURE_FEATURES.md): robot arm plan and other upcoming work
 - [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 ## License
