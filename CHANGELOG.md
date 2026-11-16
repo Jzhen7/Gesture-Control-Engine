@@ -19,6 +19,8 @@ All notable changes to this project are documented here. The format follows
 - Unit tests for the arm logic and headless MuJoCo simulation tests in CI.
 - `desktop` subcommand (alias of `control`).
 - Docs: Dash 1 (C++ rewrite) and Dash 2 (robot arm) explanations, future features plan.
+- Windows builds copy OpenCV's DLLs next to `handtracker.exe` (CMake 3.21+), so
+  a prebuilt OpenCV runs without editing `PATH`.
 
 ## [2.0.0] - 2026-11-16
 

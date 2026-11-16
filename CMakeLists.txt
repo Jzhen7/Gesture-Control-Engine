@@ -153,6 +153,15 @@ if(HT_BUILD_APP)
             ${CMAKE_CURRENT_SOURCE_DIR}/config/arm.ini
             $<TARGET_FILE_DIR:handtracker>/config/)
 
+  # Windows: also copy OpenCV's DLLs next to the .exe, so a prebuilt OpenCV
+  # works without editing PATH. The `if` keeps an empty list (e.g. a static
+  # OpenCV) from becoming a copy command with no files.
+  if(WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
+    add_custom_command(TARGET handtracker POST_BUILD
+      COMMAND "$<$<BOOL:$<TARGET_RUNTIME_DLLS:handtracker>>:${CMAKE_COMMAND};-E;copy_if_different;$<TARGET_RUNTIME_DLLS:handtracker>;$<TARGET_FILE_DIR:handtracker>>"
+      COMMAND_EXPAND_LISTS)
+  endif()
+
   install(TARGETS handtracker RUNTIME DESTINATION bin)
   install(FILES config/handtracker.ini config/arm.ini DESTINATION bin/config)
 endif()

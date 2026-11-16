@@ -31,8 +31,9 @@
    cmake -S . -B build -DOpenCV_DIR=C:/tools/opencv/build
    cmake --build build --config Release
    ```
-4. Make OpenCV's DLLs findable. Either add `<opencv>\build\x64\vc16\bin` to
-   `PATH` or copy `opencv_world*.dll` next to `build\Release\handtracker.exe`.
+4. Nothing to do for DLLs with CMake 3.21+: the build copies `opencv_world*.dll`
+   (and `mujoco.dll`) next to `build\Release\handtracker.exe`. On older CMake,
+   add `<opencv>\build\x64\vc16\bin` to `PATH` or copy the DLL there yourself.
 5. Download the models:
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\download_models.ps1

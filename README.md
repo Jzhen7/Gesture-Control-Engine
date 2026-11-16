@@ -84,7 +84,7 @@ powershell -ExecutionPolicy Bypass -File scripts\download_arm.ps1     # optional
 # 3. Build (the arm is included automatically if step 2's arm download ran)
 cmake -S . -B build -DOpenCV_DIR=C:/tools/opencv/build
 cmake --build build --config Release
-# 4. Run (OpenCV's bin folder must be on PATH, or copy opencv_world*.dll next to the exe)
+# 4. Run (the build copies OpenCV's and MuJoCo's DLLs next to the exe; CMake 3.21+)
 build\Release\handtracker.exe desktop --dry-run
 build\Release\handtracker.exe arm
 ```
