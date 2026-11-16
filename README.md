@@ -40,7 +40,7 @@ new gestures, actions and platforms can be added without touching the core loop.
 ## Quick start (Windows)
 
 ```powershell
-# 1. Prerequisites: Visual Studio 2022 (C++ workload), CMake >= 3.16, OpenCV >= 4.5
+# 1. Prerequisites: Visual Studio 2022 (C++ workload), CMake >= 3.16, OpenCV >= 4.7
 #    e.g.  winget install Kitware.CMake   and   choco install opencv
 # 2. Build
 cmake -S . -B build -DOpenCV_DIR=C:/tools/opencv/build

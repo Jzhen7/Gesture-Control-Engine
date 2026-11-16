@@ -6,7 +6,7 @@
 |---|---|---|
 | C++ compiler | C++17 | MSVC 2019+, GCC 9+, Clang 10+ |
 | CMake | 3.16+ | |
-| OpenCV | 4.5+ | modules: core, imgproc, imgcodecs, highgui, videoio, **dnn**. Only needed for the app; the core library and tests build without it |
+| OpenCV | 4.7+ | modules: core, imgproc, imgcodecs, highgui, videoio, **dnn**. Only needed for the app; the core library and tests build without it |
 
 ## CMake options
 
@@ -42,12 +42,28 @@
 ## Linux
 
 ```sh
-sudo apt install build-essential cmake libopencv-dev   # Debian/Ubuntu
+sudo apt install build-essential cmake libopencv-dev   # needs OpenCV >= 4.7 (see below)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 scripts/download_models.sh
 ./build/handtracker --dry-run
 ```
+
+> **Ubuntu 24.04 and older ship OpenCV 4.6 or earlier**, which can't import the
+> models (an ONNX `Clip` node error). On those releases, build a minimal OpenCV
+> from source and point CMake at it. CI does exactly this:
+>
+> ```sh
+> curl -fsSL https://github.com/opencv/opencv/archive/refs/tags/4.10.0.tar.gz | tar xz
+> cmake -S opencv-4.10.0 -B opencv-build -DCMAKE_BUILD_TYPE=Release \
+>   -DCMAKE_INSTALL_PREFIX=$HOME/opencv-install \
+>   -DBUILD_LIST=core,imgproc,imgcodecs,highgui,videoio,dnn \
+>   -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF
+> cmake --build opencv-build -j && cmake --install opencv-build
+> cmake -S . -B build -DOpenCV_DIR=$HOME/opencv-install/lib/cmake/opencv4
+> ```
+>
+> Install `libgtk-3-dev` first if you want the preview window.
 
 Hand tracking, gestures and the UI work, but OS actions are logged rather than
 performed until a native Linux backend lands (see the roadmap).
