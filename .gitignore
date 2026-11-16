@@ -1,0 +1,18 @@
+# Build trees
+build/
+build-*/
+out/
+cmake-build-*/
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+CMakeUserPresets.json
+
+# Downloaded models (fetched by scripts/download_models.*)
+models/*.onnx
+
+# Test artefacts
+*.annotated.png
