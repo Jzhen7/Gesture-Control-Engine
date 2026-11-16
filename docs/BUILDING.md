@@ -1,0 +1,85 @@
+# Building
+
+## Requirements
+
+| | Version | Notes |
+|---|---|---|
+| C++ compiler | C++17 | MSVC 2019+, GCC 9+, Clang 10+ |
+| CMake | 3.16+ | |
+| OpenCV | 4.5+ | modules: core, imgproc, imgcodecs, highgui, videoio, **dnn**. Only needed for the app; the core library and tests build without it |
+
+## CMake options
+
+| Option | Default | |
+|---|---|---|
+| `HT_BUILD_APP` | `ON` | Build the vision pipeline and `handtracker` executable (requires OpenCV) |
+| `HT_BUILD_TESTS` | `ON` | Build `ht_tests` |
+| `HT_WARNINGS_AS_ERRORS` | `OFF` | `-Werror` / `/WX` (on in CI) |
+
+## Windows
+
+1. Install Visual Studio 2022 with **Desktop development with C++**, and CMake
+   (`winget install Kitware.CMake`).
+2. Install OpenCV. Either:
+   - **Prebuilt** (fastest): `choco install opencv`, or download the Windows
+     release from <https://opencv.org/releases/> and extract it. The CMake
+     config lives in `<opencv>\build`.
+   - **vcpkg**: `vcpkg install opencv4[dnn]:x64-windows`, then add
+     `-DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake` below.
+3. Configure and build:
+   ```powershell
+   cmake -S . -B build -DOpenCV_DIR=C:/tools/opencv/build
+   cmake --build build --config Release
+   ```
+4. Make OpenCV's DLLs findable. Either add `<opencv>\build\x64\vc16\bin` to
+   `PATH` or copy `opencv_world*.dll` next to `build\Release\handtracker.exe`.
+5. Download the models:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\download_models.ps1
+   ```
+6. Run `build\Release\handtracker.exe --dry-run`.
+
+## Linux
+
+```sh
+sudo apt install build-essential cmake libopencv-dev   # Debian/Ubuntu
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+scripts/download_models.sh
+./build/handtracker --dry-run
+```
+
+Hand tracking, gestures and the UI work, but OS actions are logged rather than
+performed until a native Linux backend lands (see the roadmap).
+
+## macOS
+
+```sh
+brew install cmake opencv
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+scripts/download_models.sh
+./build/handtracker --dry-run
+```
+
+Grant the terminal camera access when prompted. OS actions are logged only.
+
+## Core library and tests only (no OpenCV)
+
+```sh
+cmake -S . -B build -DHT_BUILD_APP=OFF
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+## Tests
+
+```sh
+ctest --test-dir build -C Release --output-on-failure
+./build/tests/ht_tests            # all tests
+./build/tests/ht_tests temporal   # tests whose name contains "temporal"
+```
+
+With the app built, `handtracker --image <photo> --output out.png` runs the full
+detection pipeline on a still image and prints the recognised gestures. CI uses
+this as an end-to-end smoke test.
