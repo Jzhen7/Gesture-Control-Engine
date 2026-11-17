@@ -22,6 +22,15 @@ on real hands (section 11).
 
 The old rule is still there: set `gripper_mode = binary` in `config/arm.ini`.
 
+**Try it:**
+
+```powershell
+build\Release\handtracker.exe arm   # hold an open palm still for 2 s to calibrate
+```
+
+Then watch the "claw N% open -> gripper N%" readout on the camera view.
+Keys: `c` recalibrate · `a`/`d` rotate the 3D view · `q` quit.
+
 ---
 
 ## 1. The claw gesture
@@ -312,3 +321,37 @@ synthetic hand generator gained a claw pose and a joint-bending helper instead.
 8. **Two modes, two gestures.** Binary mode still closes on a fist. That's
    deliberate (it's the Dash 2 behaviour), but it means the two modes use
    different "close" gestures.
+
+---
+
+## 12. Git and authorship
+
+- The work is on branch **`feature/live-claw`**, branched from `main`, in
+  three commits: code + tests, this doc, and this doc's final additions.
+- Every Dash 3 commit is authored as **Jacob** (the repository's git
+  identity) and has **no** `Co-Authored-By: Claude` line.
+- **Not pushed yet**, and no PR opened. That waits for your go-ahead.
+- **Earlier history:** commits already on GitHub from Dashes 1 and 2,
+  including the `feature/robot-arm` merge, still carry a
+  `Co-Authored-By: Claude` line. Removing it means rewriting published
+  history and force-pushing `main` and the old branches, so it has been left
+  alone unless you decide otherwise.
+
+---
+
+## 13. Next steps
+
+1. **Live webcam session** (limitation 1). Run `handtracker arm`, calibrate,
+   and use the on-screen readout to tune:
+   - touching your fingertips still leaves the jaws a bit open → **raise
+     `grip_closed_spread`** (default 0.25)
+   - the gripper "freezes" while you're using the claw → **lower
+     `grip_min_straightness`** (default 0.8)
+   - the jaws twitch → lower `grip_min_cutoff`; they feel laggy → raise `grip_beta`
+2. **Push `feature/live-claw` and open a PR** once you're happy with it.
+3. Hardening, in rough priority order (see section 11):
+   - hysteresis on the claw check (4)
+   - a gripper speed limit before real hardware (6)
+   - foreshortening / hidden-fingertip detection (2)
+   - outlier-frame rejection (5)
+   - a stricter "tips converge evenly" check, if partial pinches bother you (3)
