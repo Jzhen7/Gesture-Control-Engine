@@ -1,9 +1,8 @@
 # Dash 1: rewriting Hand-Tracker in C++
 
 > **What this doc is:** an explanation of *what was built and why*: the
-> decisions, the tools, and how the code represents things. It's written for
-> someone new to C/C++. For *what's planned next*, see
-> [FUTURE_FEATURES.md](FUTURE_FEATURES.md).
+> decisions, the tools, and how the code represents things. For *what's
+> planned next*, see [FUTURE_FEATURES.md](FUTURE_FEATURES.md).
 
 **Dash 1 in one sentence:** the three Python scripts of v1 were rewritten as
 one C++ program, `handtracker`, with the same features, fewer bugs, tests, CI

@@ -46,6 +46,7 @@ add_library(ht_core STATIC
   src/core/controller.cpp
   src/core/filters.cpp
   src/core/gesture.cpp
+  src/core/hand_space.cpp
   src/core/landmarks.cpp
   src/core/mapping.cpp
   src/core/mouse_controller.cpp
@@ -67,6 +68,52 @@ else()
   add_library(ht_platform STATIC src/platform/null_system_control.cpp)
 endif()
 target_link_libraries(ht_platform PUBLIC ht_core PRIVATE ht_warnings)
+
+# ---------------------------------------------------------------------------
+# ht_arm: robot-arm front-end logic (hand -> workspace target, gripper rule).
+# No third-party deps, so it is always built and tested.
+# ---------------------------------------------------------------------------
+add_library(ht_arm STATIC
+  src/arm/arm_controller.cpp
+  src/arm/workspace.cpp)
+target_link_libraries(ht_arm PUBLIC ht_core PRIVATE ht_warnings)
+
+# ---------------------------------------------------------------------------
+# ht_arm_mujoco: simulated SO-101 arm. Built automatically when MuJoCo is
+# present (scripts/download_arm.* puts it in third_party/mujoco).
+# ---------------------------------------------------------------------------
+set(MUJOCO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/mujoco" CACHE PATH
+    "MuJoCo release folder (contains include/ and lib/)")
+find_path(MUJOCO_INCLUDE_DIR mujoco/mujoco.h PATHS "${MUJOCO_DIR}/include" NO_DEFAULT_PATH)
+find_library(MUJOCO_LIBRARY NAMES mujoco PATHS "${MUJOCO_DIR}/lib" NO_DEFAULT_PATH)
+set(HT_HAS_MUJOCO OFF)
+if(MUJOCO_INCLUDE_DIR AND MUJOCO_LIBRARY)
+  set(HT_HAS_MUJOCO ON)
+  add_library(mujoco::mujoco SHARED IMPORTED)
+  set_target_properties(mujoco::mujoco PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${MUJOCO_INCLUDE_DIR}")
+  if(WIN32)
+    set(MUJOCO_DLL "${MUJOCO_DIR}/bin/mujoco.dll")
+    set_target_properties(mujoco::mujoco PROPERTIES
+      IMPORTED_IMPLIB "${MUJOCO_LIBRARY}" IMPORTED_LOCATION "${MUJOCO_DLL}")
+  else()
+    set_target_properties(mujoco::mujoco PROPERTIES IMPORTED_LOCATION "${MUJOCO_LIBRARY}")
+  endif()
+
+  add_library(ht_arm_mujoco STATIC src/arm/mujoco_arm.cpp)
+  target_link_libraries(ht_arm_mujoco PUBLIC ht_arm mujoco::mujoco PRIVATE ht_warnings)
+  message(STATUS "MuJoCo found in ${MUJOCO_DIR}: building the simulated arm")
+else()
+  message(STATUS "MuJoCo not found in ${MUJOCO_DIR}: skipping the simulated arm "
+                 "(run scripts/download_arm.ps1 or .sh to enable it)")
+endif()
+
+# Windows finds DLLs next to the .exe; copy mujoco.dll there.
+function(ht_copy_mujoco_dll target)
+  if(HT_HAS_MUJOCO AND WIN32)
+    add_custom_command(TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MUJOCO_DLL}" $<TARGET_FILE_DIR:${target}>)
+  endif()
+endfunction()
 
 # ---------------------------------------------------------------------------
 # Vision pipeline + application (OpenCV)
@@ -91,16 +138,32 @@ if(HT_BUILD_APP)
     apps/mouse_app.cpp
     apps/orientation_app.cpp)
   target_link_libraries(handtracker PRIVATE ht_vision ht_platform ht_warnings)
+  if(HT_HAS_MUJOCO)
+    target_sources(handtracker PRIVATE apps/arm_app.cpp apps/arm_view.cpp)
+    target_link_libraries(handtracker PRIVATE ht_arm_mujoco)
+    target_compile_definitions(handtracker PRIVATE HT_HAS_ARM=1)
+    ht_copy_mujoco_dll(handtracker)
+  endif()
 
-  # Ship the default config next to the binary so it runs from the build tree.
+  # Ship the default configs next to the binary so it runs from the build tree.
   add_custom_command(TARGET handtracker POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:handtracker>/config
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_CURRENT_SOURCE_DIR}/config/handtracker.ini
-            $<TARGET_FILE_DIR:handtracker>/config/handtracker.ini)
+            ${CMAKE_CURRENT_SOURCE_DIR}/config/arm.ini
+            $<TARGET_FILE_DIR:handtracker>/config/)
+
+  # Windows: also copy OpenCV's DLLs next to the .exe, so a prebuilt OpenCV
+  # works without editing PATH. The `if` keeps an empty list (e.g. a static
+  # OpenCV) from becoming a copy command with no files.
+  if(WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
+    add_custom_command(TARGET handtracker POST_BUILD
+      COMMAND "$<$<BOOL:$<TARGET_RUNTIME_DLLS:handtracker>>:${CMAKE_COMMAND};-E;copy_if_different;$<TARGET_RUNTIME_DLLS:handtracker>;$<TARGET_FILE_DIR:handtracker>>"
+      COMMAND_EXPAND_LISTS)
+  endif()
 
   install(TARGETS handtracker RUNTIME DESTINATION bin)
-  install(FILES config/handtracker.ini DESTINATION bin/config)
+  install(FILES config/handtracker.ini config/arm.ini DESTINATION bin/config)
 endif()
 
 # ---------------------------------------------------------------------------
