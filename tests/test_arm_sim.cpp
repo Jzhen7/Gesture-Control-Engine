@@ -86,12 +86,44 @@ TEST_CASE("sim: long random sequence of targets never gets stuck") {
 
 TEST_CASE("sim: gripper closes and opens") {
   MujocoArm arm(settings());
-  arm.setGripper(true);
+  arm.setGripperOpening(0.f);
   for (int i = 0; i < 30; ++i) arm.advance(1.0 / 30.0);
   CHECK(arm.state().gripperOpening < 0.1f);
-  arm.setGripper(false);
+  arm.setGripperOpening(1.f);
   for (int i = 0; i < 30; ++i) arm.advance(1.0 / 30.0);
-  CHECK(arm.state().gripperOpening > 0.5f);
+  CHECK(arm.state().gripperOpening > 0.9f);
+}
+
+TEST_CASE("sim: jaws settle at in-between openings") {
+  MujocoArm arm(settings());
+  for (float want : {0.25f, 0.5f, 0.75f}) {
+    arm.setGripperOpening(want);
+    for (int i = 0; i < 30; ++i) arm.advance(1.0 / 30.0);
+    std::cerr << "  commanded " << want << " -> measured " << arm.state().gripperOpening << "\n";
+    CHECK_NEAR(arm.state().gripperOpening, want, 0.05);
+    CHECK_NEAR(arm.state().gripperCommand, want, 1e-6);
+  }
+}
+
+TEST_CASE("sim: jaws go from open to shut in well under half a second") {
+  MujocoArm arm(settings());
+  for (int i = 0; i < 30; ++i) arm.advance(1.0 / 30.0);
+  arm.setGripperOpening(0.f);
+  double t = 0.0;
+  while (arm.state().gripperOpening > 0.1f && t < 2.0) {
+    arm.advance(0.005);
+    t += 0.005;
+  }
+  std::cerr << "  open -> 10% open took " << t * 1000.0 << " ms (simulated)\n";
+  CHECK(t < 0.5);
+}
+
+TEST_CASE("sim: out-of-range openings are clamped") {
+  MujocoArm arm(settings());
+  arm.setGripperOpening(7.f);
+  CHECK_NEAR(arm.state().gripperCommand, 1, 1e-6);
+  arm.setGripperOpening(-3.f);
+  CHECK_NEAR(arm.state().gripperCommand, 0, 1e-6);
 }
 
 TEST_CASE("sim: IK solve does not move the arm") {

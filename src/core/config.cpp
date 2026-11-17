@@ -253,6 +253,22 @@ class Parser {
       if (key == "max_speed") return f(a.maxSpeed);
       if (key == "gripper_open") return f(a.gripperOpen);
       if (key == "gripper_closed") return f(a.gripperClosed);
+      if (key == "gripper_mode") {
+        const std::string m = lower(trim(v));
+        if (m == "proportional") {
+          a.gripperMode = GripperMode::Proportional;
+        } else if (m == "binary") {
+          a.gripperMode = GripperMode::Binary;
+        } else {
+          warn(ln, "gripper_mode must be 'proportional' or 'binary'");
+        }
+        return true;
+      }
+      if (key == "grip_closed_spread") return f(a.grip.closedSpread);
+      if (key == "grip_deadband") return f(a.grip.deadband);
+      if (key == "grip_min_straightness") return f(a.grip.minStraightness);
+      if (key == "grip_min_cutoff") return d(a.gripMinCutoff);
+      if (key == "grip_beta") return d(a.gripBeta);
       if (key == "ik_iterations") return i(a.ikIterations);
       if (key == "ik_damping") return f(a.ikDamping);
       if (key == "ik_null_gain") return f(a.ikNullGain);

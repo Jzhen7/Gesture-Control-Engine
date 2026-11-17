@@ -32,7 +32,7 @@ class MujocoArm final : public ArmBackend {
   MujocoArm& operator=(const MujocoArm&) = delete;
 
   void setTarget(const Vec3& position) override;
-  void setGripper(bool closed) override;
+  void setGripperOpening(float opening) override;
   void advance(double seconds) override;
   ArmState state() const override;
   std::string name() const override;
@@ -58,7 +58,7 @@ class MujocoArm final : public ArmBackend {
   int gripperActuator_ = -1;
   std::vector<int> skeletonBodies_;
   Vec3 target_;
-  bool closed_ = false;
+  float opening_ = 1.f;  ///< Commanded jaw opening, 0..1.
   double time_ = 0.0;
 };
 

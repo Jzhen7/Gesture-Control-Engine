@@ -72,7 +72,7 @@ std::string MujocoArm::name() const { return std::string("MuJoCo ") + mj_version
 
 void MujocoArm::setTarget(const Vec3& position) { target_ = position; }
 
-void MujocoArm::setGripper(bool closed) { closed_ = closed; }
+void MujocoArm::setGripperOpening(float opening) { opening_ = std::clamp(opening, 0.f, 1.f); }
 
 double MujocoArm::solveIk(const Vec3& target, std::vector<double>& jointsOut) const {
   // Damped least squares ("Levenberg-Marquardt") inverse kinematics:
@@ -166,7 +166,10 @@ void MujocoArm::advance(double seconds) {
     const auto u = static_cast<std::size_t>(i);
     data_->ctrl[actuator_[u]] = q[u];
   }
-  data_->ctrl[gripperActuator_] = closed_ ? settings_.gripperClosed : settings_.gripperOpen;
+  // Proportional jaw: a position servo, so the command is simply an angle
+  // between the configured "closed" and "open" angles.
+  data_->ctrl[gripperActuator_] =
+      settings_.gripperClosed + opening_ * (settings_.gripperOpen - settings_.gripperClosed);
 
   // 2. Run physics for the elapsed time (capped, so a stall doesn't make it lurch).
   seconds = std::clamp(seconds, 0.0, 0.1);
@@ -179,12 +182,14 @@ ArmState MujocoArm::state() const {
   ArmState st;
   st.gripper = vec(data_->site_xpos + 3 * site_);
   st.target = target_;
-  st.gripperClosed = closed_;
-  const mjtNum* range = model_->jnt_range + 2 * gripperJoint_;
+  st.gripperCommand = opening_;
+  // Measured on the same scale as the command (1 = the configured open angle),
+  // so "commanded 50%, measured 50%" means the jaws got there.
   const double g = data_->qpos[model_->jnt_qposadr[gripperJoint_]];
-  st.gripperOpening = static_cast<float>(std::clamp((g - settings_.gripperClosed) /
-                                                        (range[1] - settings_.gripperClosed),
-                                                    0.0, 1.0));
+  const double span = settings_.gripperOpen - settings_.gripperClosed;
+  st.gripperOpening = std::fabs(span) < 1e-9
+                          ? 0.f
+                          : static_cast<float>(std::clamp((g - settings_.gripperClosed) / span, 0.0, 1.0));
   for (int i = 0; i < kArmJoints; ++i) {
     st.joints.push_back(data_->qpos[qposAdr_[static_cast<std::size_t>(i)]]);
   }

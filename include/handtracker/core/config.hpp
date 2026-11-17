@@ -63,6 +63,12 @@ struct MouseConfig {
   double beta = 0.02;
 };
 
+/// How the hand drives the arm's gripper.
+enum class GripperMode {
+  Proportional,  ///< Dash 3: jaw opening follows the fingertip "claw" (0..1).
+  Binary,        ///< Dash 2 MVP: fist = closed, anything else = open (closed claw not used).
+};
+
 /// Robot-arm front-end settings ([arm] section, normally in config/arm.ini).
 struct ArmSettings {
   std::string model = "models/so101/scene.xml";  ///< MuJoCo scene file.
@@ -78,6 +84,10 @@ struct ArmSettings {
   float maxSpeed = 0.6f;            ///< Fastest the target may move, metres/second.
   float gripperOpen = 1.2f;         ///< Jaw joint angle (radians) for "open".
   float gripperClosed = 0.0f;       ///< Jaw joint angle (radians) for "closed".
+  GripperMode gripperMode = GripperMode::Proportional;
+  GripConfig grip;                  ///< Claw -> 0..1 (closed spread, dead band, straightness).
+  double gripMinCutoff = 2.0;       ///< One Euro filter on the openness (Hz).
+  double gripBeta = 2.0;            ///< One Euro speed coefficient (openness per second).
   int ikIterations = 10;            ///< IK refinement steps per frame.
   float ikDamping = 0.05f;          ///< IK damping: higher = smoother near singularities.
   float ikNullGain = 0.05f;         ///< Pull toward the ready pose with the arm's spare freedom.

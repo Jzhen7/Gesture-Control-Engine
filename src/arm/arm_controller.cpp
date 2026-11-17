@@ -15,10 +15,11 @@ ArmController::ArmController(const AppConfig& cfg, ArmBackend& arm, MessageSink 
       calibrator_(cfg.arm.calibrationMs, cfg.arm.calibrationMaxMotion),
       filters_{OneEuroFilter(cfg.arm.minCutoff, cfg.arm.beta),
                OneEuroFilter(cfg.arm.minCutoff, cfg.arm.beta),
-               OneEuroFilter(cfg.arm.minCutoff, cfg.arm.beta)} {
+               OneEuroFilter(cfg.arm.minCutoff, cfg.arm.beta)},
+      gripFilter_(cfg.arm.gripMinCutoff, cfg.arm.gripBeta) {
   status_.target = box_.center();
   arm_.setTarget(status_.target);  // Start in the middle of the workspace, gripper open.
-  arm_.setGripper(false);
+  arm_.setGripperOpening(1.f);
 }
 
 void ArmController::recalibrate() {
@@ -73,13 +74,29 @@ void ArmController::track(const HandLandmarks& hand, Gesture g, double tMs) {
   status_.target = box_.clamp(smooth);
   arm_.setTarget(status_.target);
 
-  // 3. Gripper: closed only for a fist. An ambiguous frame (None) keeps the last state.
-  if (g != Gesture::None) {
+  grip(hand, g, t);
+}
+
+void ArmController::grip(const HandLandmarks& hand, Gesture g, double t) {
+  status_.clawPose = isClawPose(hand, cfg_.arm.grip);
+  status_.handOpenness = handOpenness(hand, *status_.calibration, cfg_.arm.grip);
+
+  if (cfg_.arm.gripperMode == GripperMode::Binary) {
+    // Dash 2 rule: closed only for a fist. An ambiguous frame (None) keeps the last state.
+    if (g == Gesture::None) return;
     const bool closed = gripClosed(g);
-    if (closed != status_.gripperClosed && sink_) sink_(closed ? "gripper: close" : "gripper: open");
-    status_.gripperClosed = closed;
-    arm_.setGripper(closed);
+    const bool wasClosed = status_.gripperOpening < 0.5f;
+    if (closed != wasClosed && sink_) sink_(closed ? "gripper: close" : "gripper: open");
+    status_.gripperOpening = closed ? 0.f : 1.f;
+  } else {
+    // Dash 3: the jaws follow the claw continuously. Curled fingers (a fist,
+    // a relaxed hand) aren't the claw, so the gripper holds where it is.
+    if (!status_.clawPose) return;
+    // The filter removes the flutter of individual fingertips but lets a quick grab through.
+    const double f = gripFilter_.filter(status_.handOpenness, t);
+    status_.gripperOpening = std::clamp(static_cast<float>(f), 0.f, 1.f);
   }
+  arm_.setGripperOpening(status_.gripperOpening);
 }
 
 }  // namespace ht::arm
