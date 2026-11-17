@@ -82,6 +82,28 @@ executable's directory and its parents.
 | `min_cutoff` | `1.0` | One Euro filter cutoff (Hz): lower = smoother, laggier |
 | `beta` | `0.02` | One Euro speed coefficient: higher = less lag when moving fast |
 
+## `[arm]` (robot-arm front-end, in `config/arm.ini`)
+
+`handtracker arm` reads `config/arm.ini` by default. It uses the same
+`[camera]`, `[models]` and `[classifier]` sections as above, plus:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `model` | `models/so101/scene.xml` | MuJoCo scene (from `scripts/download_arm.*`) |
+| `calibration_ms` | `2000` | How long to hold the open palm when calibrating |
+| `calibration_max_motion` | `0.05` | Max palm drift (fraction of frame) while calibrating |
+| `range_x`, `range_y` | `0.30`, `0.25` | Hand offset from the calibration pose (fraction of frame) that reaches the workspace edge |
+| `depth_range` | `0.35` | Change in ln(palm size) that reaches the front/back of the workspace |
+| `workspace_min`, `workspace_max` | `0.17 -0.13 0.06`, `0.31 0.13 0.24` | Reachable box in metres, arm frame (X forward, Y left, Z up) |
+| `min_cutoff`, `beta` | `1.0`, `5.0` | One Euro filter on the arm target |
+| `max_speed` | `0.6` | Fastest the target may move (m/s) |
+| `gripper_open`, `gripper_closed` | `1.2`, `0.0` | Jaw joint angles in radians |
+| `ik_iterations` | `10` | IK refinement steps per frame |
+| `ik_damping` | `0.05` | IK damping (stability near full stretch) |
+| `ik_null_gain` | `0.05` | Pull toward a comfortable pose; keep it above 0 |
+
+Vectors are three numbers separated by spaces or commas.
+
 ## `[bindings]`
 
 ```ini

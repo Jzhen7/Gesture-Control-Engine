@@ -16,3 +16,7 @@ models/*.onnx
 
 # Test artefacts
 *.annotated.png
+
+# Downloaded by scripts/download_arm.*
+third_party/
+models/so101/

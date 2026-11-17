@@ -142,3 +142,16 @@ lazily on whichever thread calls it.
   `src/platform/<os>_system_control.cpp` and select it in `CMakeLists.txt`.
 - **New mode**: add a `Mode`, a mapping function, and a case in
   `GestureController::updateMode`.
+
+## Robot-arm front-end
+
+A second front-end shares the engine. It adds two libraries:
+
+| Library | Depends on | Contents |
+|---|---|---|
+| `ht_arm` | `ht_core` | `ArmBackend` interface, workspace mapping, `ArmController` (calibration, filtering, speed limit, gripper rule) |
+| `ht_arm_mujoco` | `ht_arm`, MuJoCo | `MujocoArm`: loads the SO-101 model, inverse kinematics, physics stepping |
+
+The engine side gained `core/hand_space.*` (calibrated 3D hand position). The
+full data flow, coordinate frames, IK and simulator details are in
+[DASH-2_ROBOT_ARM.md](DASH-2_ROBOT_ARM.md).

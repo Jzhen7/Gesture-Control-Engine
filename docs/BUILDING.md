@@ -31,8 +31,9 @@
    cmake -S . -B build -DOpenCV_DIR=C:/tools/opencv/build
    cmake --build build --config Release
    ```
-4. Make OpenCV's DLLs findable. Either add `<opencv>\build\x64\vc16\bin` to
-   `PATH` or copy `opencv_world*.dll` next to `build\Release\handtracker.exe`.
+4. Nothing to do for DLLs with CMake 3.21+: the build copies `opencv_world*.dll`
+   (and `mujoco.dll`) next to `build\Release\handtracker.exe`. On older CMake,
+   add `<opencv>\build\x64\vc16\bin` to `PATH` or copy the DLL there yourself.
 5. Download the models:
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\download_models.ps1
@@ -79,6 +80,26 @@ scripts/download_models.sh
 ```
 
 Grant the terminal camera access when prompted. OS actions are logged only.
+
+## Robot-arm front-end (MuJoCo)
+
+The arm needs MuJoCo and the SO-101 model. Download both, then re-run CMake:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\download_arm.ps1   # Windows
+```
+```sh
+scripts/download_arm.sh                                              # Linux
+```
+
+This puts MuJoCo 3.17.0 in `third_party/mujoco` and the model in
+`models/so101` (both git-ignored). CMake detects MuJoCo automatically, builds
+`handtracker arm`, copies `mujoco.dll` next to the executable on Windows, and
+adds the headless simulation tests (`ht_arm_sim_tests`). Without MuJoCo,
+everything else still builds. To use a MuJoCo installed elsewhere, pass
+`-DMUJOCO_DIR=<path>`.
+
+macOS: MuJoCo ships as a `.dmg` framework, which the script doesn't handle yet.
 
 ## Core library and tests only (no OpenCV)
 

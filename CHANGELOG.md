@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Robot-arm front-end** (`handtracker arm`): a simulated SO-101 arm (MuJoCo
+  3.17) follows the hand in 3D; the gripper closes on a fist.
+- Calibrated 3D hand position in the engine, with depth from apparent palm size.
+- `ArmBackend` interface, workspace mapping, `ArmController` with One Euro
+  filtering, speed limit, clamping and hold-on-hand-loss.
+- Damped-least-squares inverse kinematics with a null-space bias toward a
+  ready pose.
+- OpenCV-drawn 3D arm view alongside the camera preview.
+- `config/arm.ini`, `[arm]` config section, `scripts/download_arm.{ps1,sh}`.
+- Unit tests for the arm logic and headless MuJoCo simulation tests in CI.
+- `desktop` subcommand (alias of `control`).
+- Docs: Dash 1 (C++ rewrite) and Dash 2 (robot arm) explanations, future features plan.
+- Windows builds copy OpenCV's DLLs next to `handtracker.exe` (CMake 3.21+), so
+  a prebuilt OpenCV runs without editing `PATH`.
+
 ## [2.0.0] - 2026-11-16
 
 Complete rewrite of the Python prototype in C++17.

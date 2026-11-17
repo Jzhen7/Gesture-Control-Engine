@@ -35,17 +35,22 @@ struct Options {
 
 void printUsage() {
   std::cout <<
-      "handtracker " HT_VERSION " - hand gesture control for the desktop\n"
+      "handtracker " HT_VERSION " - control your computer or a robot arm with your hand\n"
       "\n"
       "usage: handtracker [command] [options]\n"
       "\n"
-      "commands:\n"
-      "  control       gestures trigger actions: media keys, volume, brightness... (default)\n"
+      "desktop front-end:\n"
+      "  desktop       gestures trigger actions: media keys, volume, brightness... (default;\n"
+      "                'control' also works)\n"
       "  mouse         move the cursor with your hand, pinch to click\n"
       "  orientation   visualise the 3D rotation of your hand\n"
       "\n"
+      "robot-arm front-end:\n"
+      "  arm           a simulated SO-101 arm follows your hand; a fist closes the gripper\n"
+      "\n"
       "options:\n"
-      "  -c, --config <file>    config file (default: config/handtracker.ini)\n"
+      "  -c, --config <file>    config file (default: config/handtracker.ini,\n"
+      "                         or config/arm.ini for 'arm')\n"
       "      --camera <index>   camera index (overrides config)\n"
       "      --models <dir>     directory containing the .onnx models\n"
       "      --dry-run          log actions instead of performing them\n"
@@ -107,7 +112,9 @@ bool parseArgs(int argc, char** argv, Options& opt) {
       opt.dryRun = true;
     } else if (a == "--no-preview") {
       opt.noPreview = true;
-    } else if (a == "control" || a == "mouse" || a == "orientation") {
+    } else if (a == "control" || a == "desktop") {
+      opt.command = "control";
+    } else if (a == "mouse" || a == "orientation" || a == "arm") {
       opt.command = a;
     } else {
       std::cerr << "error: unknown argument '" << a << "' (see --help)\n";
@@ -140,8 +147,10 @@ int main(int argc, char** argv) {
   std::error_code ec;
   const fs::path exeDir = fs::absolute(fs::path(argv[0]), ec).parent_path();
 
+  const bool armMode = opt.command == "arm";
+  const std::string defaultConfig = armMode ? "config/arm.ini" : "config/handtracker.ini";
   const std::string configPath =
-      resolve(opt.configPath.empty() ? "config/handtracker.ini" : opt.configPath, exeDir);
+      resolve(opt.configPath.empty() ? defaultConfig : opt.configPath, exeDir);
   ht::ConfigResult loaded = ht::loadConfigFile(configPath);
   for (const auto& w : loaded.warnings) std::cerr << "config: " << w << "\n";
   ht::AppConfig cfg = loaded.config;
@@ -155,6 +164,16 @@ int main(int argc, char** argv) {
   }
   cfg.models.palmModel = resolve(cfg.models.palmModel, exeDir);
   cfg.models.landmarkModel = resolve(cfg.models.landmarkModel, exeDir);
+  cfg.arm.model = resolve(cfg.arm.model, exeDir);
+
+#ifndef HT_HAS_ARM
+  if (armMode) {
+    std::cerr << "error: this build has no robot-arm support.\n"
+              << "Run scripts/download_arm.ps1 (Windows) or scripts/download_arm.sh (Linux),\n"
+              << "then re-run CMake and rebuild.\n";
+    return 2;
+  }
+#endif
 
   ht::platformInit();
 
@@ -174,6 +193,15 @@ int main(int argc, char** argv) {
       return ht::app::runImage(*tracker, cfg, opt.imagePath, opt.outputPath, opt.expectHands,
                                opt.expectGesture);
     }
+
+#ifdef HT_HAS_ARM
+    if (armMode) {
+      // The arm front-end drives the simulator, not the OS, so it needs no SystemControl.
+      std::cout << "handtracker " HT_VERSION " | arm | camera " << cfg.camera.index << "\n";
+      auto armApp = ht::app::makeArmApp(cfg);
+      return ht::app::runCamera(*armApp, *tracker, cfg, "Hand Tracker - Robot Arm");
+    }
+#endif
 
     std::unique_ptr<ht::SystemControl> system;
     if (opt.dryRun) {

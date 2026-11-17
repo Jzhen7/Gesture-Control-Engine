@@ -24,11 +24,17 @@ class App {
   virtual void draw(cv::Mat& frame, const std::optional<HandLandmarks>& hand, double tMs) = 0;
   virtual bool quitRequested() const { return false; }
   virtual void shutdown() {}
+  /// Keyboard input from the preview window (q/Esc are handled by the runner).
+  virtual void onKey(int /*key*/) {}
 };
 
 std::unique_ptr<App> makeControlApp(const AppConfig& cfg, SystemControl& system);
 std::unique_ptr<App> makeMouseApp(const AppConfig& cfg, SystemControl& system);
 std::unique_ptr<App> makeOrientationApp(const AppConfig& cfg);
+#ifdef HT_HAS_ARM
+/// Robot-arm front-end (simulated SO-101). Throws if the arm model can't be loaded.
+std::unique_ptr<App> makeArmApp(const AppConfig& cfg);
+#endif
 
 /// Live camera loop. Returns a process exit code.
 int runCamera(App& app, vision::HandTracker& tracker, const AppConfig& cfg,
