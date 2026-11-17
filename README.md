@@ -5,7 +5,7 @@ the same engine:
 
 | 🖥️ **Desktop** | 🦾 **Robot arm** |
 |---|---|
-| Control your computer with gestures: skip Spotify tracks with a swipe, switch windows by flipping your hand, dial the volume by tilting your palm, set brightness by raising your hand, or drive the mouse and click with a pinch. | A simulated **SO-101** robot arm (MuJoCo physics) follows your hand anywhere in 3D, and its gripper closes when you make a fist. |
+| Control your computer with gestures: skip Spotify tracks with a swipe, switch windows by flipping your hand, dial the volume by tilting your palm, set brightness by raising your hand, or drive the mouse and click with a pinch. | A simulated **SO-101** robot arm (MuJoCo physics) follows your hand anywhere in 3D, and its gripper opens and closes live with your fingertips, like a claw. |
 | `handtracker desktop` | `handtracker arm` |
 
 This is **v2**, a ground-up C++17 rewrite of the original Python prototype
@@ -16,8 +16,9 @@ new front-ends, gestures and platforms can be added without touching the engine.
 [![CI](https://github.com/Jzhen7/Hand-Tracker-CPP/actions/workflows/ci.yml/badge.svg)](https://github.com/Jzhen7/Hand-Tracker-CPP/actions/workflows/ci.yml)
 
 **New to the codebase or to C++?** Start with
-[Dash 1: the C++ rewrite](docs/DASH-1_CPP_REVAMP.md) and
-[Dash 2: the robot arm](docs/DASH-2_ROBOT_ARM.md). They explain every
+[Dash 1: the C++ rewrite](docs/DASH-1_CPP_REVAMP.md),
+[Dash 2: the robot arm](docs/DASH-2_ROBOT_ARM.md) and
+[Dash 3: live claw control](docs/DASH-3_LIVE_CLAW.md). They explain every
 decision, tool and design choice.
 
 ---
@@ -100,7 +101,8 @@ desktop front-end:
   orientation   visualise the 3D rotation of your hand
 
 robot-arm front-end:
-  arm           a simulated SO-101 arm follows your hand; a fist closes the gripper
+  arm           a simulated SO-101 arm follows your hand; pinch straight fingertips
+                together to close the gripper, spread them to open it
 
   -c, --config <file>    config file (default: config/handtracker.ini, or config/arm.ini)
       --camera <index>   camera index
@@ -138,12 +140,17 @@ exact definitions.
    That spot becomes the centre of the arm's workspace.
 3. Move your hand: left/right, up/down and toward/away from the camera move the
    gripper the same way.
-4. Make a **fist** to close the gripper; open your hand to release.
+4. **Grip like a claw:** keep your fingers straight and bring all five
+   fingertips together in front of your palm to close the gripper; spread them
+   to open it. The jaws follow continuously, so half-closed fingers give a
+   half-closed gripper. Curled fingers (including a fist) leave the gripper
+   where it is. (`gripper_mode = binary` restores the old fist rule.)
 5. Keys: `c` recalibrate · `a`/`d` rotate the view · `q` quit.
 
-Settings (workspace size, sensitivity, speed limit, gripper angles) are in
-[`config/arm.ini`](config/arm.ini). How it all works is in
-[Dash 2](docs/DASH-2_ROBOT_ARM.md).
+Settings (workspace size, sensitivity, speed limit, gripper angles, claw
+thresholds) are in [`config/arm.ini`](config/arm.ini). How it all works is in
+[Dash 2](docs/DASH-2_ROBOT_ARM.md) (the arm) and
+[Dash 3](docs/DASH-3_LIVE_CLAW.md) (the claw).
 
 ## Project layout
 
@@ -160,7 +167,7 @@ apps/         the handtracker executable: desktop, mouse, orientation, arm
 tests/        unit tests, synthetic hand generator, headless simulation tests
 config/       handtracker.ini (desktop), arm.ini (robot arm)
 scripts/      download scripts for models and the arm simulator
-docs/         Dash 1 & 2 write-ups, architecture, gestures, config, building, roadmap
+docs/         Dash 1-3 write-ups, architecture, gestures, config, building, roadmap
 ```
 
 ## What changed from v1
@@ -185,6 +192,7 @@ docs/         Dash 1 & 2 write-ups, architecture, gestures, config, building, ro
 **Explanations (what was built and why)**
 - [Dash 1: the C++ rewrite](docs/DASH-1_CPP_REVAMP.md): decisions, tools, C++ primer
 - [Dash 2: the robot arm](docs/DASH-2_ROBOT_ARM.md): data flow, simulator, inverse kinematics
+- [Dash 3: live claw control](docs/DASH-3_LIVE_CLAW.md): proportional gripper from fingertip spread
 
 **Reference**
 - [Building](docs/BUILDING.md) · [Gestures](docs/GESTURES.md) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)

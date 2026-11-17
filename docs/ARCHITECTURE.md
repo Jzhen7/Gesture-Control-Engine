@@ -149,9 +149,11 @@ A second front-end shares the engine. It adds two libraries:
 
 | Library | Depends on | Contents |
 |---|---|---|
-| `ht_arm` | `ht_core` | `ArmBackend` interface, workspace mapping, `ArmController` (calibration, filtering, speed limit, gripper rule) |
+| `ht_arm` | `ht_core` | `ArmBackend` interface, workspace mapping, `ArmController` (calibration, filtering, speed limit, claw / gripper rule) |
 | `ht_arm_mujoco` | `ht_arm`, MuJoCo | `MujocoArm`: loads the SO-101 model, inverse kinematics, physics stepping |
 
-The engine side gained `core/hand_space.*` (calibrated 3D hand position). The
-full data flow, coordinate frames, IK and simulator details are in
-[DASH-2_ROBOT_ARM.md](DASH-2_ROBOT_ARM.md).
+The engine side gained `core/hand_space.*` (calibrated 3D hand position, and
+since Dash 3 the claw measurements: fingertip spread and finger straightness).
+The full data flow, coordinate frames, IK and simulator details are in
+[DASH-2_ROBOT_ARM.md](DASH-2_ROBOT_ARM.md); proportional gripper control is in
+[DASH-3_LIVE_CLAW.md](DASH-3_LIVE_CLAW.md).

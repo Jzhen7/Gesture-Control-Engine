@@ -82,7 +82,11 @@ Delivered as four PRs:
   relative motion (like lifting a mouse), so the hand can reposition and the
   arm can cover more than the camera's view.
 - **Wrist orientation** from the hand's 3D rotation (`computeOrientation`).
-- **Proportional gripper** from pinch distance instead of open/closed only.
+- ✅ **Proportional gripper**: done in [Dash 3](DASH-3_LIVE_CLAW.md). The jaws
+  follow the fingertip spread of a straight-fingered "claw" (all tips together =
+  closed); a fist holds the gripper. Still to do: live webcam tuning of the
+  thresholds, hysteresis on the claw check, and a gripper speed limit for real
+  hardware.
 - **Stop gesture** (e-stop) and a **home pose** gesture.
 - Safety limits: joint limits, maximum speed, keep-out zones.
 - Record/replay of hand streams (`handtracker record`, `--source replay:`), so

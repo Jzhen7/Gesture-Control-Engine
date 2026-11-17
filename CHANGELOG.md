@@ -7,6 +7,21 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Live claw control** (Dash 3): the gripper's opening follows the hand
+  continuously (0-100%). Close it by bringing straight fingers' tips together in
+  front of the palm; spread them to open. Curled fingers, including a fist,
+  hold the gripper where it is. `gripper_mode = binary` keeps the old fist rule.
+- Engine: `fingertipSpread()`, `fingerStraightness()`, `isClawPose()`,
+  `handOpenness()`; calibration records the user's open-palm spread.
+- `[arm]` keys `gripper_mode`, `grip_closed_spread`, `grip_deadband`,
+  `grip_min_straightness`, `grip_min_cutoff`, `grip_beta`.
+
+### Changed
+- `ArmBackend::setGripper(bool)` is now `setGripperOpening(float)` (0 = closed,
+  1 = open), and `ArmState::gripperClosed` is now `gripperCommand`. Measured
+  `gripperOpening` is on the same 0-1 scale as the command (1 = `gripper_open`).
+
+### Added (Dash 2)
 - **Robot-arm front-end** (`handtracker arm`): a simulated SO-101 arm (MuJoCo
   3.17) follows the hand in 3D; the gripper closes on a fist.
 - Calibrated 3D hand position in the engine, with depth from apparent palm size.
