@@ -4,6 +4,11 @@
 > made building it. Read [Dash 1](DASH-1_CPP_REVAMP.md) first for C++ basics.
 > Planned arm features are in [FUTURE_FEATURES.md](FUTURE_FEATURES.md).
 
+> **Update (Dash 3):** the gripper is now proportional and closes with a
+> straight-fingered "claw" instead of a fist. See
+> [DASH-3_LIVE_CLAW.md](DASH-3_LIVE_CLAW.md). The fist rule below is still
+> available as `gripper_mode = binary`.
+
 **Status:** milestone 1 (MVP) is complete: implemented, tested in simulation,
 and run live with a webcam on Windows 11 (MSVC 2022, OpenCV 4.10, about 28 fps).
 

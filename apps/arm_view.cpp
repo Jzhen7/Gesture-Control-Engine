@@ -24,6 +24,12 @@ const cv::Scalar kText(220, 220, 220);
 
 Vec3 floorOf(const Vec3& p) { return {p.x, p.y, 0.f}; }
 
+/// Red when shut, green when open, blended in between.
+cv::Scalar gripColor(float opening) {
+  const double t = std::clamp(static_cast<double>(opening), 0.0, 1.0);
+  return kClosed * (1.0 - t) + kOpen * t;
+}
+
 }  // namespace
 
 ArmView::ArmView(int width, int height) : width_(width), height_(height) { updateCamera(); }
@@ -120,7 +126,7 @@ cv::Mat ArmView::render(const arm::ArmState& st, const arm::WorkspaceBox& box,
       dir *= 1.f / len;
       const cv::Point2f perp(-dir.y, dir.x);
       const float spread = 4.f + 14.f * st.gripperOpening;
-      const cv::Scalar jaw = st.gripperClosed ? kClosed : kOpen;
+      const cv::Scalar jaw = gripColor(st.gripperCommand);
       for (float side : {-1.f, 1.f}) {
         const cv::Point2f base = cv::Point2f(tip) + perp * (side * spread * 0.5f);
         const cv::Point2f end = base + dir * 16.f + perp * (side * spread * 0.4f);
@@ -133,9 +139,10 @@ cv::Mat ArmView::render(const arm::ArmState& st, const arm::WorkspaceBox& box,
   char buf[128];
   cv::putText(img, "SO-101 (MuJoCo simulation)", {12, 24}, cv::FONT_HERSHEY_SIMPLEX, 0.55, kText,
               1, cv::LINE_AA);
-  std::snprintf(buf, sizeof(buf), "gripper: %s", st.gripperClosed ? "CLOSED" : "open");
-  cv::putText(img, buf, {12, 48}, cv::FONT_HERSHEY_SIMPLEX, 0.55,
-              st.gripperClosed ? kClosed : kOpen, 2, cv::LINE_AA);
+  std::snprintf(buf, sizeof(buf), "gripper: %3.0f%% open (jaws at %3.0f%%)",
+                st.gripperCommand * 100.f, st.gripperOpening * 100.f);
+  cv::putText(img, buf, {12, 48}, cv::FONT_HERSHEY_SIMPLEX, 0.55, gripColor(st.gripperCommand), 2,
+              cv::LINE_AA);
   std::snprintf(buf, sizeof(buf), "target  x %4.1f  y %5.1f  z %4.1f cm", st.target.x * 100.f,
                 st.target.y * 100.f, st.target.z * 100.f);
   cv::putText(img, buf, {12, 72}, cv::FONT_HERSHEY_SIMPLEX, 0.45, kText, 1, cv::LINE_AA);

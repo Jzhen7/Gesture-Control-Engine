@@ -22,10 +22,16 @@ constexpr double kToastMs = 1800.0;
 class ArmApp final : public App {
  public:
   explicit ArmApp(const AppConfig& cfg)
-      : arm_(cfg.arm),
+      : cfg_(cfg),
+        arm_(cfg.arm),
         controller_(cfg, arm_, [this](const std::string& m) { onMessage(m); }),
         view_(cfg.camera.width, cfg.camera.height) {
     std::cout << "arm backend: " << arm_.name() << "\n"
+              << "gripper: "
+              << (cfg.arm.gripperMode == GripperMode::Binary
+                      ? "binary (fist = closed, anything else = open)"
+                      : "proportional (straight fingers: tips together = closed, spread = open)")
+              << "\n"
               << "keys: c = recalibrate, a/d = rotate view, q = quit\n";
     controller_.recalibrate();
   }
@@ -50,10 +56,21 @@ class ArmApp final : public App {
       lines.emplace_back("CALIBRATING: hold an open palm still");
       lines.emplace_back("where it feels comfortable (2 s)");
     } else {
-      lines.emplace_back(s.handVisible ? (s.gripperClosed ? "fist: gripper closed"
-                                                          : "open hand: gripper open")
-                                       : "no hand: arm holds position");
       char buf[96];
+      if (!s.handVisible) {
+        lines.emplace_back("no hand: arm holds position and grip");
+      } else if (cfg_.arm.gripperMode == GripperMode::Binary) {
+        lines.emplace_back(s.gripperOpening < 0.5f ? "fist: gripper closed" : "open hand: gripper open");
+      } else {
+        if (s.clawPose) {
+          std::snprintf(buf, sizeof(buf), "claw %3.0f%% open -> gripper %3.0f%%",
+                        s.handOpenness * 100.f, s.gripperOpening * 100.f);
+        } else {
+          std::snprintf(buf, sizeof(buf), "fingers bent: gripper held at %3.0f%%",
+                        s.gripperOpening * 100.f);
+        }
+        lines.emplace_back(buf);
+      }
       std::snprintf(buf, sizeof(buf), "hand  x %+.2f  y %+.2f  depth %+.2f", s.handPosition.x,
                     s.handPosition.y, s.handPosition.z);
       lines.emplace_back(buf);
@@ -92,6 +109,7 @@ class ArmApp final : public App {
     messageT_ = lastDrawT_;
   }
 
+  AppConfig cfg_;
   arm::MujocoArm arm_;  // Declared before controller_, which uses it.
   arm::ArmController controller_;
   ArmView view_;

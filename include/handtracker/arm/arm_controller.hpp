@@ -2,7 +2,9 @@
 //
 // Per frame:  hand landmarks -> gesture (smoothed) -> 3D hand position
 //             -> workspace target -> One Euro filter -> speed limit -> backend
-//             and fist? -> gripper closed : open
+//             and, if the fingers are straight (claw pose), claw openness
+//             (fingertip spread, 0..1) -> One Euro filter -> gripper opening
+//             (or, in binary mode, fist? -> closed : open)
 //
 // Lifecycle:  Calibrating (hold an open palm still) -> Tracking.
 // If the hand disappears the arm simply keeps its last target and gripper.
@@ -31,7 +33,9 @@ struct ArmStatus {
   Gesture gesture = Gesture::None;
   Vec3 handPosition;  ///< Normalised hand cube, before clamping.
   Vec3 target;        ///< Filtered target sent to the arm (metres).
-  bool gripperClosed = false;
+  bool clawPose = false;       ///< Fingers straight enough to steer the gripper this frame.
+  float handOpenness = 0.f;    ///< Raw claw openness this frame (0 = tips together, 1 = open).
+  float gripperOpening = 1.f;  ///< Opening sent to the arm (0 = closed, 1 = open).
   std::optional<HandSpaceCalibration> calibration;
 };
 
@@ -52,6 +56,7 @@ class ArmController {
 
  private:
   void track(const HandLandmarks& hand, Gesture g, double tMs);
+  void grip(const HandLandmarks& hand, Gesture g, double tSeconds);
 
   AppConfig cfg_;
   ArmBackend& arm_;
@@ -60,6 +65,7 @@ class ArmController {
   GestureSmoother smoother_;
   HandCalibrator calibrator_;
   std::array<OneEuroFilter, 3> filters_;
+  OneEuroFilter gripFilter_;
   bool hasTarget_ = false;
   double lastT_ = 0.0;
   ArmStatus status_;

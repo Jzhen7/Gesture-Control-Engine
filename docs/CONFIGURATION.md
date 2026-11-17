@@ -98,6 +98,11 @@ executable's directory and its parents.
 | `min_cutoff`, `beta` | `1.0`, `5.0` | One Euro filter on the arm target |
 | `max_speed` | `0.6` | Fastest the target may move (m/s) |
 | `gripper_open`, `gripper_closed` | `1.2`, `0.0` | Jaw joint angles in radians |
+| `gripper_mode` | `proportional` | `proportional`: jaws follow the fingertip claw; `binary`: fist = closed, anything else = open |
+| `grip_closed_spread` | `0.25` | Fingertip spread (mean distance between all pairs of fingertips ÷ palm length) that counts as fully closed |
+| `grip_deadband` | `0.1` | Snap to exactly closed/open within this fraction of each end |
+| `grip_min_straightness` | `0.8` | How straight *every* finger must be (1 = straight) to count as a claw; below it the gripper holds |
+| `grip_min_cutoff`, `grip_beta` | `2.0`, `2.0` | One Euro filter on the gripper opening |
 | `ik_iterations` | `10` | IK refinement steps per frame |
 | `ik_damping` | `0.05` | IK damping (stability near full stretch) |
 | `ik_null_gain` | `0.05` | Pull toward a comfortable pose; keep it above 0 |
