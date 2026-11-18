@@ -9,14 +9,20 @@ Vec3 palmCenterNormalized(const HandLandmarks& hand) {
   return (hand.normalized(LandmarkId::Wrist) + hand.normalized(LandmarkId::MiddleMcp)) * 0.5f;
 }
 
-float palmSizeNormalized(const HandLandmarks& hand) {
-  return hand.palmSize() / std::max(hand.imageWidth, 1.f);
+float palmSizeNormalized(const HandLandmarks& hand, bool tiltCorrected) {
+  const float w = std::max(hand.imageWidth, 1.f);
+  if (!tiltCorrected) return hand.palmSize() / w;
+  // Length on screen (x, y only), scaled back up by how much of the palm lies
+  // in the image plane. The 3D direction comes from the world points when the
+  // model provides them; the image z alone is a rougher depth estimate.
+  const Vec3 d = hand[LandmarkId::MiddleMcp] - hand[LandmarkId::Wrist];
+  return std::hypot(d.x, d.y) / w / palmInPlaneFraction(hand);
 }
 
 Vec3 handPosition(const HandLandmarks& hand, const HandSpaceCalibration& cal,
                   const HandSpaceConfig& cfg) {
   const Vec3 c = palmCenterNormalized(hand);
-  const float size = std::max(palmSizeNormalized(hand), 1e-6f);
+  const float size = std::max(palmSizeNormalized(hand, cfg.tiltCorrection), 1e-6f);
   const float ref = std::max(cal.palmSize, 1e-6f);
   // Apparent size is inversely proportional to distance, so a log ratio gives a
   // symmetric scale: twice as big and half as big are equally far from centre.
@@ -75,13 +81,14 @@ float handOpenness(const HandLandmarks& hand, const HandSpaceCalibration& cal,
   return std::clamp((raw - d) / (1.f - 2.f * d), 0.f, 1.f);
 }
 
-HandCalibrator::HandCalibrator(double durationMs, float maxMotion)
-    : durationMs_(durationMs), maxMotion_(maxMotion) {}
+HandCalibrator::HandCalibrator(double durationMs, float maxMotion, bool tiltCorrection)
+    : durationMs_(durationMs), maxMotion_(maxMotion), tiltCorrection_(tiltCorrection) {}
 
 void HandCalibrator::reset() {
   holding_ = false;
   samples_ = 0;
   sumX_ = sumY_ = sumSize_ = sumSpread_ = 0.0;
+  sumFingers_ = sumNormal_ = Vec3{};
 }
 
 float HandCalibrator::progress(double tMs) const {
@@ -105,8 +112,12 @@ std::optional<HandSpaceCalibration> HandCalibrator::update(const std::optional<H
   }
   sumX_ += c.x;
   sumY_ += c.y;
-  sumSize_ += palmSizeNormalized(*hand);
+  sumSize_ += palmSizeNormalized(*hand, tiltCorrection_);
   sumSpread_ += fingertipSpread(*hand);
+  const HandFrame raw = handFrame(*hand, 1.f);
+  sumFingers_ = sumFingers_ + raw.y;
+  // Keep every normal on the same side as the first one before summing.
+  sumNormal_ = sumNormal_ + (samples_ > 0 && dot(raw.z, sumNormal_) < 0.f ? raw.z * -1.f : raw.z);
   ++samples_;
 
   if (tMs - startT_ < durationMs_) return std::nullopt;
@@ -115,6 +126,9 @@ std::optional<HandSpaceCalibration> HandCalibrator::update(const std::optional<H
   cal.centerY = static_cast<float>(sumY_ / samples_);
   cal.palmSize = static_cast<float>(sumSize_ / samples_);
   cal.openSpread = static_cast<float>(sumSpread_ / samples_);
+  // The front of the hand is whichever side faced the camera (+X, forward).
+  cal.frontSign = sumNormal_.x >= 0.f ? 1.f : -1.f;
+  cal.frame = orthonormalFrame(sumFingers_, sumNormal_ * cal.frontSign);
   reset();
   return cal;
 }

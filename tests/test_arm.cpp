@@ -25,6 +25,8 @@ class FakeArm final : public ArmBackend {
   std::vector<float> grips;  ///< Every opening sent, 0 = closed, 1 = open.
   void setTarget(const Vec3& p) override { targets.push_back(p); }
   void setGripperOpening(float opening) override { grips.push_back(opening); }
+  std::vector<WristTarget> wrists;
+  void setWristTarget(const WristTarget& w) override { wrists.push_back(w); }
   void advance(double) override {}
   ArmState state() const override { return {}; }
   std::string name() const override { return "fake"; }
@@ -37,8 +39,35 @@ HandSpaceCalibration calibrationFor(const HandLandmarks& hand) {
   c.centerY = p.y;
   c.palmSize = palmSizeNormalized(hand);
   c.openSpread = fingertipSpread(hand);
+  c.frontSign = frontSign(hand);
+  c.frame = handFrame(hand, c.frontSign);
   return c;
 }
+
+constexpr float kDeg = 3.14159265f / 180.f;
+
+/// Rotates v about unit axis a by angle (Rodrigues).
+Vec3 rotateVec(const Vec3& v, const Vec3& a, float angle) {
+  const float c = std::cos(angle), s = std::sin(angle);
+  return v * c + cross(a, v) * s + a * (dot(a, v) * (1.f - c));
+}
+
+/// Turns a synthetic hand in 3D about its wrist. `axis` is in arm space
+/// (X towards the camera, Y the user's left, Z up). Both the image and the
+/// world points are rotated, so it exercises the 3D path like the real model.
+HandLandmarks rotateHand(HandLandmarks h, const Vec3& axis, float degrees) {
+  const Vec3 wrist = h[LandmarkId::Wrist];
+  for (auto& p : h.image) {
+    const Vec3 a = rotateVec(toArmSpace(p - wrist), normalized(axis), degrees * kDeg);
+    p = wrist + Vec3{-a.y, -a.z, -a.x};  // arm space -> landmark axes (inverse of toArmSpace)
+  }
+  HandLandmarks::Points world = h.image;
+  for (auto& p : world) p = (p - wrist) * 0.001f;  // "metres", wrist at the origin
+  h.world = world;
+  return h;
+}
+
+const Vec3 kForward{1, 0, 0}, kLeft{0, 1, 0}, kUp{0, 0, 1};
 
 /// The "claw": every finger straight, swung at its base knuckle so all five
 /// fingertips meet at one point in front of the palm.
@@ -504,4 +533,251 @@ TEST_CASE("config: shipped config files parse without warnings") {
   const auto arm = loadConfigFile(std::string(HT_SOURCE_DIR) + "/config/arm.ini");
   CHECK_NEAR(arm.config.arm.workspaceMax.x, 0.31, 1e-6);
   CHECK_EQ(arm.config.arm.model, std::string("models/so101/scene.xml"));
+}
+
+
+// ---------------------------------------------------------------------------
+// Dash 4: hand orientation -> claw orientation
+// ---------------------------------------------------------------------------
+
+TEST_CASE("hand frame: calibration palm has fingers up, front towards the camera") {
+  const auto palm = makeHand(kPalm);
+  const HandFrame f = handFrame(palm, frontSign(palm));
+  CHECK_NEAR(f.y.z, 1, 1e-3);  // fingers up
+  CHECK_NEAR(f.z.x, 1, 1e-2);  // front faces the camera
+  CHECK_NEAR(f.x.y, 1, 1e-2);  // across = user's left
+}
+
+TEST_CASE("hand angles: tipping the fingers towards the camera is +flex") {
+  const auto cal = calibrationFor(makeHand(kPalm));
+  for (float deg : {-40.f, -15.f, 20.f, 45.f}) {
+    // Rotating about the left axis by +deg tips the fingers forward.
+    const auto h = rotateHand(makeHand(kPalm), kLeft, deg);
+    const HandAngles a = handAngles(handFrame(h, cal.frontSign), cal.frame);
+    CHECK_NEAR(a.flex, deg * kDeg, 0.02);
+    CHECK_NEAR(a.twist, 0, 0.02);
+    CHECK_NEAR(a.side, 0, 0.02);
+  }
+}
+
+TEST_CASE("hand angles: turning about the fingers (doorknob) is twist") {
+  const auto cal = calibrationFor(makeHand(kPalm));
+  for (float deg : {-80.f, -30.f, 30.f, 80.f}) {
+    const auto h = rotateHand(makeHand(kPalm), kUp, deg);
+    const HandAngles a = handAngles(handFrame(h, cal.frontSign), cal.frame);
+    CHECK_NEAR(a.twist, deg * kDeg, 0.02);
+    CHECK_NEAR(a.flex, 0, 0.02);
+  }
+}
+
+TEST_CASE("hand angles: tilting sideways is side, not flex or twist") {
+  const auto cal = calibrationFor(makeHand(kPalm));
+  // About the forward axis by +20: fingers lean to the user's right (-Y).
+  const auto h = rotateHand(makeHand(kPalm), kForward, 20.f);
+  const HandAngles a = handAngles(handFrame(h, cal.frontSign), cal.frame);
+  CHECK_NEAR(a.side, -20 * kDeg, 0.02);
+  CHECK_NEAR(a.flex, 0, 0.02);
+  CHECK_NEAR(a.twist, 0, 0.02);
+}
+
+TEST_CASE("hand angles: twist is still measured correctly while flexed") {
+  // Twist first, then flex: the swing-twist split must give both back.
+  const auto cal = calibrationFor(makeHand(kPalm));
+  const auto h = rotateHand(rotateHand(makeHand(kPalm), kUp, 40.f), kLeft, 30.f);
+  const HandAngles a = handAngles(handFrame(h, cal.frontSign), cal.frame);
+  CHECK_NEAR(a.flex, 30 * kDeg, 0.02);
+  CHECK_NEAR(a.twist, 40 * kDeg, 0.02);
+}
+
+TEST_CASE("hand angles: same answers for the other hand / back of the hand") {
+  Pose other;
+  other.mirrored = true;  // a left hand, or a right hand seen from the back
+  const auto palm = makeHand(kPalm, other);
+  CHECK_NEAR(frontSign(palm), -frontSign(makeHand(kPalm)), 1e-6);  // the normal flips...
+  const auto cal = calibrationFor(palm);
+  const auto h = rotateHand(rotateHand(palm, kUp, -35.f), kLeft, 25.f);
+  const HandAngles a = handAngles(handFrame(h, cal.frontSign), cal.frame);
+  CHECK_NEAR(a.flex, 25 * kDeg, 0.02);  // ...but the angles don't
+  CHECK_NEAR(a.twist, -35 * kDeg, 0.02);
+}
+
+TEST_CASE("hand angles: curling the fingers doesn't change the orientation") {
+  const auto cal = calibrationFor(makeHand(kPalm));
+  const auto open = rotateHand(makeHand(kPalm), kUp, 30.f);
+  const auto claw0 = rotateHand(claw(0.f), kUp, 30.f);
+  const auto fist = rotateHand(makeHand(kFist), kUp, 30.f);
+  const float t = handAngles(handFrame(open, cal.frontSign), cal.frame).twist;
+  CHECK_NEAR(handAngles(handFrame(claw0, cal.frontSign), cal.frame).twist, t, 1e-4);
+  CHECK_NEAR(handAngles(handFrame(fist, cal.frontSign), cal.frame).twist, t, 1e-4);
+}
+
+TEST_CASE("calibrator: records the neutral hand frame") {
+  HandCalibrator calib(500.0, 0.05f, true);
+  const auto hand = makeHand(kPalm);
+  std::optional<HandSpaceCalibration> r;
+  for (double t = 0; t < 700 && !r; t += kFrameMs) r = calib.update(hand, Gesture::Palm, t);
+  REQUIRE(r.has_value());
+  CHECK_NEAR(r->frontSign, frontSign(hand), 1e-6);
+  CHECK_NEAR(r->frame.y.z, 1, 1e-3);
+  CHECK_NEAR(r->frame.z.x, 1, 1e-2);
+}
+
+TEST_CASE("tilt correction: flexing the hand doesn't look like moving away") {
+  const auto palm = makeHand(kPalm);
+  HandSpaceConfig on;
+  HandSpaceConfig off;
+  off.tiltCorrection = false;
+  HandSpaceCalibration cal = calibrationFor(palm);
+  cal.palmSize = palmSizeNormalized(palm, true);
+  for (float deg : {20.f, 40.f, -30.f}) {
+    // Real image z is a rough guess; flatten it so only the world points know
+    // the tilt (the uncorrected Dash 2 measure includes image z).
+    auto h = rotateHand(palm, kLeft, deg);
+    for (auto& p : h.image) p.z = 0.f;
+    const float zOn = handPosition(h, cal, on).z;
+    const float zOff = handPosition(h, cal, off).z;
+    std::cerr << "  flex " << deg << " deg: depth " << zOff << " uncorrected, " << zOn
+              << " corrected\n";
+    CHECK_NEAR(zOn, 0, 0.02);
+    CHECK(std::fabs(zOff) > std::fabs(zOn));
+  }
+}
+
+TEST_CASE("claw measurements are unaffected by hand orientation") {
+  const auto cal = calibrationFor(makeHand(kPalm));
+  const float ref = handOpenness(claw(0.5f), cal, {});
+  for (const Vec3& axis : {kUp, kLeft, kForward}) {
+    const auto h = rotateHand(claw(0.5f), axis, 50.f);
+    CHECK_NEAR(handOpenness(h, cal, {}), ref, 0.01);
+    CHECK(isClawPose(h, {}));
+  }
+}
+
+namespace {
+/// Feeds `hand` for `frames` frames and returns the last wrist target.
+WristTarget settle(ArmController& ctl, FakeArm& arm, const HandLandmarks& hand, double& t,
+                   int frames = 60) {
+  for (int i = 0; i < frames; ++i, t += kFrameMs) ctl.update(hand, t);
+  return arm.wrists.back();
+}
+}  // namespace
+
+TEST_CASE("arm controller (orientation): neutral pose gives the neutral pitch, no roll") {
+  AppConfig cfg = defaultConfig();
+  FakeArm arm;
+  ArmController ctl(cfg, arm);
+  ctl.setCalibration(calibrationFor(makeHand(kPalm)));
+  double t = 0;
+  const WristTarget w = settle(ctl, arm, makeHand(kPalm), t);
+  REQUIRE(w.pitch.has_value());
+  CHECK_NEAR(*w.pitch, cfg.arm.neutralPitch, 1e-3);
+  CHECK_NEAR(w.roll, 0, 1e-3);
+}
+
+TEST_CASE("arm controller (orientation): flex tips the claw down, twist rolls it") {
+  AppConfig cfg = defaultConfig();
+  FakeArm arm;
+  ArmController ctl(cfg, arm);
+  ctl.setCalibration(calibrationFor(makeHand(kPalm)));
+  double t = 0;
+  WristTarget w = settle(ctl, arm, rotateHand(makeHand(kPalm), kLeft, 30.f), t);
+  CHECK_NEAR(*w.pitch, cfg.arm.neutralPitch - 30 * kDeg, 0.02);  // fingers forward -> claw down
+  w = settle(ctl, arm, rotateHand(makeHand(kPalm), kUp, 45.f), t);
+  CHECK_NEAR(w.roll, 45 * kDeg, 0.02);
+  CHECK_NEAR(*w.pitch, cfg.arm.neutralPitch, 0.02);
+}
+
+TEST_CASE("arm controller (orientation): gains, clamps and the turn-rate limit") {
+  AppConfig cfg = defaultConfig();
+  cfg.arm.rollGain = 2.f;
+  cfg.arm.rollLimit = 60 * kDeg;
+  FakeArm arm;
+  ArmController ctl(cfg, arm);
+  ctl.setCalibration(calibrationFor(makeHand(kPalm)));
+  double t = 0;
+  ctl.update(makeHand(kPalm), t);
+  t += kFrameMs;
+  ctl.update(rotateHand(makeHand(kPalm), kUp, 50.f), t);  // sudden 50 deg twist
+  CHECK(std::fabs(arm.wrists.back().roll) <= cfg.arm.maxAngularSpeed * 0.033f + 1e-3f);
+  const WristTarget w = settle(ctl, arm, rotateHand(makeHand(kPalm), kUp, 50.f), t);
+  CHECK_NEAR(w.roll, 60 * kDeg, 1e-3);  // 2 x 50 = 100, clamped to 60
+
+  // Pitch can't go below straight down, however far the hand flexes.
+  const WristTarget down = settle(ctl, arm, rotateHand(makeHand(kPalm), kLeft, 85.f), t);
+  CHECK(*down.pitch >= cfg.arm.pitchMin - 1e-4f);
+}
+
+TEST_CASE("arm controller (orientation): holds when the hand is lost") {
+  AppConfig cfg = defaultConfig();
+  FakeArm arm;
+  ArmController ctl(cfg, arm);
+  ctl.setCalibration(calibrationFor(makeHand(kPalm)));
+  double t = 0;
+  settle(ctl, arm, rotateHand(makeHand(kPalm), kUp, 40.f), t);
+  const auto before = arm.wrists.size();
+  for (int i = 0; i < 30; ++i, t += kFrameMs) ctl.update(std::nullopt, t);
+  CHECK_EQ(arm.wrists.size(), before);
+  CHECK_NEAR(ctl.status().wrist.roll, 40 * kDeg, 0.02);
+}
+
+TEST_CASE("arm controller (orientation): turning the hand barely moves the arm") {
+  AppConfig cfg = defaultConfig();
+  FakeArm arm;
+  ArmController ctl(cfg, arm);
+  HandCalibrator calib(500.0, 0.05f, true);
+  std::optional<HandSpaceCalibration> cal;
+  for (double t0 = 0; t0 < 700 && !cal; t0 += kFrameMs) cal = calib.update(makeHand(kPalm), Gesture::Palm, t0);
+  ctl.setCalibration(*cal);
+  double t = 0;
+  for (int i = 0; i < 60; ++i, t += kFrameMs) ctl.update(makeHand(kPalm), t);
+  const Vec3 before = arm.targets.back();
+  for (const auto& h : {rotateHand(makeHand(kPalm), kUp, 60.f), rotateHand(makeHand(kPalm), kLeft, 30.f)}) {
+    for (int i = 0; i < 60; ++i, t += kFrameMs) ctl.update(h, t);
+    const float moved = (arm.targets.back() - before).norm();
+    std::cerr << "  arm target moved " << moved * 1000.f << " mm\n";
+    CHECK(moved < 0.01f);
+  }
+}
+
+TEST_CASE("arm controller (orientation): off = Dash 3 behaviour") {
+  AppConfig cfg = defaultConfig();
+  cfg.arm.orientation = false;
+  FakeArm arm;
+  ArmController ctl(cfg, arm);
+  ctl.setCalibration(calibrationFor(makeHand(kPalm)));
+  double t = 0;
+  for (int i = 0; i < 30; ++i, t += kFrameMs) ctl.update(rotateHand(makeHand(kPalm), kUp, 45.f), t);
+  CHECK(!arm.wrists.back().pitch.has_value());
+  CHECK_NEAR(arm.wrists.back().roll, 0, 1e-6);
+}
+
+TEST_CASE("config: Dash 4 orientation keys (degrees in the file)") {
+  const auto r = parseConfig(R"(
+[arm]
+orientation = false
+neutral_pitch_deg = -45
+pitch_gain = 0.5
+roll_gain = 1.5
+pitch_min_deg = -80
+pitch_max_deg = 10
+roll_limit_deg = 120
+orient_min_cutoff = 2
+orient_beta = 0.25
+max_angular_speed_deg = 90
+ik_pitch_search_steps = 4
+neutral_pitch_deg = down
+)");
+  CHECK_EQ(r.warnings.size(), static_cast<std::size_t>(1));  // "down"
+  const auto& a = r.config.arm;
+  CHECK(!a.orientation);
+  CHECK_NEAR(a.neutralPitch, -45 * kDeg, 1e-5);
+  CHECK_NEAR(a.pitchGain, 0.5, 1e-6);
+  CHECK_NEAR(a.rollGain, 1.5, 1e-6);
+  CHECK_NEAR(a.pitchMin, -80 * kDeg, 1e-5);
+  CHECK_NEAR(a.pitchMax, 10 * kDeg, 1e-5);
+  CHECK_NEAR(a.rollLimit, 120 * kDeg, 1e-5);
+  CHECK_NEAR(a.orientMinCutoff, 2, 1e-9);
+  CHECK_NEAR(a.orientBeta, 0.25, 1e-9);
+  CHECK_NEAR(a.maxAngularSpeed, 90 * kDeg, 1e-5);
+  CHECK_EQ(a.ikPitchSearchSteps, 4);
 }

@@ -117,22 +117,21 @@ cv::Mat ArmView::render(const arm::ArmState& st, const arm::WorkspaceBox& box,
     if (project(st.skeleton[i], p)) cv::circle(img, p, 5, kJoint, cv::FILLED, cv::LINE_AA);
   }
 
-  // Gripper: two jaws whose spread shows the measured opening.
-  if (st.skeleton.size() >= 2) {
-    cv::Point tip, prev;
-    if (project(st.skeleton.back(), tip) && project(st.skeleton[st.skeleton.size() - 2], prev)) {
-      cv::Point2f dir(static_cast<float>(tip.x - prev.x), static_cast<float>(tip.y - prev.y));
-      const float len = std::max(1.f, std::hypot(dir.x, dir.y));
-      dir *= 1.f / len;
-      const cv::Point2f perp(-dir.y, dir.x);
-      const float spread = 4.f + 14.f * st.gripperOpening;
-      const cv::Scalar jaw = gripColor(st.gripperCommand);
-      for (float side : {-1.f, 1.f}) {
-        const cv::Point2f base = cv::Point2f(tip) + perp * (side * spread * 0.5f);
-        const cv::Point2f end = base + dir * 16.f + perp * (side * spread * 0.4f);
-        cv::line(img, base, end, jaw, 4, cv::LINE_AA);
-      }
+  // Gripper, drawn in 3D from the claw's own axes (Dash 4), so its pitch and
+  // roll are visible: two jaws whose gap shows the measured opening, opening
+  // along clawUp, plus a thin line showing where the claw points.
+  if (!st.skeleton.empty()) {
+    const Vec3 tip = st.skeleton.back();
+    const Vec3 axis = st.clawAxis;
+    const Vec3 jawDir = st.clawUp;
+    const float gap = 0.006f + 0.022f * st.gripperOpening;  // metres, half-gap at the tips
+    const cv::Scalar jaw = gripColor(st.gripperCommand);
+    for (float side : {-1.f, 1.f}) {
+      const Vec3 base = tip - axis * 0.035f + jawDir * (side * 0.012f);
+      const Vec3 end = tip + jawDir * (side * gap);
+      line3d(img, base, end, jaw, 4);
     }
+    line3d(img, tip, tip + axis * 0.05f, kTarget, 1);
   }
 
   // Text.
@@ -148,6 +147,17 @@ cv::Mat ArmView::render(const arm::ArmState& st, const arm::WorkspaceBox& box,
   cv::putText(img, buf, {12, 72}, cv::FONT_HERSHEY_SIMPLEX, 0.45, kText, 1, cv::LINE_AA);
   std::snprintf(buf, sizeof(buf), "reach error %.1f mm", (st.gripper - st.target).norm() * 1000.f);
   cv::putText(img, buf, {12, 92}, cv::FONT_HERSHEY_SIMPLEX, 0.45, kText, 1, cv::LINE_AA);
+  constexpr float kToDeg = 57.29578f;
+  if (st.wristTarget.pitch) {
+    std::snprintf(buf, sizeof(buf), "pitch %+4.0f deg (want %+4.0f)%s   roll %+4.0f (want %+4.0f)",
+                  st.pitch * kToDeg, *st.wristTarget.pitch * kToDeg,
+                  st.pitchLimited ? " LIMITED" : "", st.roll * kToDeg, st.wristTarget.roll * kToDeg);
+  } else {
+    std::snprintf(buf, sizeof(buf), "pitch %+4.0f deg (free)   roll %+4.0f deg", st.pitch * kToDeg,
+                  st.roll * kToDeg);
+  }
+  cv::putText(img, buf, {12, 112}, cv::FONT_HERSHEY_SIMPLEX, 0.45,
+              st.pitchLimited ? kTarget : kText, 1, cv::LINE_AA);
   if (status.phase == arm::Phase::Calibrating) {
     cv::putText(img, "waiting for calibration...", {12, height_ - 16}, cv::FONT_HERSHEY_SIMPLEX,
                 0.5, kTarget, 1, cv::LINE_AA);

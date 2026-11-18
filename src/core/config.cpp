@@ -244,6 +244,7 @@ class Parser {
       if (key == "range_x") return f(a.hand.rangeX);
       if (key == "range_y") return f(a.hand.rangeY);
       if (key == "depth_range") return f(a.hand.depthRange);
+      if (key == "tilt_correction") return b(a.hand.tiltCorrection);
       if (key == "workspace_min") return v3(a.workspaceMin);
       if (key == "workspace_max") return v3(a.workspaceMax);
       if (key == "calibration_ms") return d(a.calibrationMs);
@@ -272,6 +273,26 @@ class Parser {
       if (key == "ik_iterations") return i(a.ikIterations);
       if (key == "ik_damping") return f(a.ikDamping);
       if (key == "ik_null_gain") return f(a.ikNullGain);
+      if (key == "ik_pitch_damping") return f(a.ikPitchDamping);
+      if (key == "ik_pitch_step") return f(a.ikPitchStep);
+      if (key == "ik_pitch_search_steps") return i(a.ikPitchSearchSteps);
+      // Dash 4 orientation. Angles in degrees in the file, radians in memory.
+      auto deg = [&](float& out) {
+        float x = 0.f;
+        if (!parseFloat(v, x)) return warn(ln, "invalid value '" + std::string(v) + "'"), true;
+        out = x * 3.14159265f / 180.f;
+        return true;
+      };
+      if (key == "orientation") return b(a.orientation);
+      if (key == "neutral_pitch_deg") return deg(a.neutralPitch);
+      if (key == "pitch_gain") return f(a.pitchGain);
+      if (key == "roll_gain") return f(a.rollGain);
+      if (key == "pitch_min_deg") return deg(a.pitchMin);
+      if (key == "pitch_max_deg") return deg(a.pitchMax);
+      if (key == "roll_limit_deg") return deg(a.rollLimit);
+      if (key == "orient_min_cutoff") return d(a.orientMinCutoff);
+      if (key == "orient_beta") return d(a.orientBeta);
+      if (key == "max_angular_speed_deg") return deg(a.maxAngularSpeed);
     }
     return false;
   }

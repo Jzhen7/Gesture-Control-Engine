@@ -46,6 +46,7 @@ add_library(ht_core STATIC
   src/core/controller.cpp
   src/core/filters.cpp
   src/core/gesture.cpp
+  src/core/hand_pose.cpp
   src/core/hand_space.cpp
   src/core/landmarks.cpp
   src/core/mapping.cpp

@@ -81,7 +81,10 @@ Delivered as four PRs:
 - **Clutch mode:** move the arm only while an "engage" gesture is held, using
   relative motion (like lifting a mouse), so the hand can reposition and the
   arm can cover more than the camera's view.
-- **Wrist orientation** from the hand's 3D rotation (`computeOrientation`).
+- ✅ **Wrist orientation**: done in [Dash 4](DASH-4_CLAW_ORIENTATION.md). Hand
+  flex → claw pitch, hand twist → claw roll (the SO-101 has no free yaw).
+  Still to do: live tuning, wrist-anchored position (removes the 5 mm drift
+  when flexing).
 - ✅ **Proportional gripper**: done in [Dash 3](DASH-3_LIVE_CLAW.md). The jaws
   follow the fingertip spread of a straight-fingered "claw" (all tips together =
   closed); a fist holds the gripper. Still to do: live webcam tuning of the
@@ -130,3 +133,5 @@ Delivered as four PRs:
 - 🟡 GitHub milestones (`v2.1 Restructure`, `v3.0 Robot arm`) with one issue per PR.
 - 🟡 Demo GIFs for each front-end in the README.
 - ⚪ Prebuilt Windows release (zip with OpenCV DLLs and models) attached to GitHub Releases.
+
+Add physics engine and interactable objects in the simulation
