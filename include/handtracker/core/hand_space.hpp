@@ -17,6 +17,7 @@
 #include <optional>
 
 #include "handtracker/core/gesture.hpp"
+#include "handtracker/core/hand_pose.hpp"
 #include "handtracker/core/landmarks.hpp"
 
 namespace ht {
@@ -27,19 +28,28 @@ struct HandSpaceCalibration {
   float palmSize = 0.1f;  ///< Palm size / image width at calibration (the "middle" depth).
   /// fingertipSpread() of the user's open palm at calibration: "100% open" for this hand.
   float openSpread = 0.85f;
+  /// Dash 4: the hand's axes at calibration (the "neutral" orientation) and the
+  /// front-of-hand sign that makes the frame point at the camera (see hand_pose.hpp).
+  HandFrame frame;
+  float frontSign = 1.f;
 };
 
 struct HandSpaceConfig {
   float rangeX = 0.30f;      ///< Image-x offset (fraction of width) that reaches x = +/-1.
   float rangeY = 0.25f;      ///< Image-y offset (fraction of height) that reaches y = +/-1.
   float depthRange = 0.35f;  ///< |ln(size / calibrated size)| that reaches z = +/-1.
+  /// Dash 4: divide the palm size by palmInPlaneFraction(), so tipping the hand
+  /// forward/back (to pitch the claw) isn't mistaken for moving away.
+  bool tiltCorrection = true;
 };
 
 /// Palm centre (midpoint of wrist and middle knuckle) in normalised image coordinates.
 Vec3 palmCenterNormalized(const HandLandmarks& hand);
 
-/// Palm size as a fraction of image width (scale-free depth cue).
-float palmSizeNormalized(const HandLandmarks& hand);
+/// Palm size as a fraction of image width (scale-free depth cue). With
+/// `tiltCorrected`, divided by palmInPlaneFraction(): the size the palm would
+/// have if it faced the camera squarely.
+float palmSizeNormalized(const HandLandmarks& hand, bool tiltCorrected = false);
 
 /// Hand position in the calibrated cube. Values may exceed [-1, 1]; callers clamp.
 Vec3 handPosition(const HandLandmarks& hand, const HandSpaceCalibration& cal,
@@ -91,7 +101,8 @@ inline bool gripClosed(Gesture smoothedGesture) { return smoothedGesture == Gest
 /// Records the calibration pose: an open palm held still for `durationMs`.
 class HandCalibrator {
  public:
-  explicit HandCalibrator(double durationMs = 2000.0, float maxMotion = 0.05f);
+  explicit HandCalibrator(double durationMs = 2000.0, float maxMotion = 0.05f,
+                          bool tiltCorrection = false);
 
   /// Feed every frame. Returns the calibration once the pose has been held long enough.
   std::optional<HandSpaceCalibration> update(const std::optional<HandLandmarks>& hand,
@@ -102,6 +113,7 @@ class HandCalibrator {
  private:
   double durationMs_;
   float maxMotion_;
+  bool tiltCorrection_;
   bool holding_ = false;
   double startT_ = 0.0;
   float anchorX_ = 0.f;
@@ -110,6 +122,8 @@ class HandCalibrator {
   double sumY_ = 0.0;
   double sumSize_ = 0.0;
   double sumSpread_ = 0.0;
+  Vec3 sumFingers_;  ///< Summed finger directions (arm space).
+  Vec3 sumNormal_;   ///< Summed palm normals, each flipped to agree with the first.
   int samples_ = 0;
 };
 

@@ -33,13 +33,35 @@ class MujocoArm final : public ArmBackend {
 
   void setTarget(const Vec3& position) override;
   void setGripperOpening(float opening) override;
+  void setWristTarget(const WristTarget& wrist) override;
   void advance(double seconds) override;
   ArmState state() const override;
   std::string name() const override;
 
+  struct IkResult {
+    double positionError = 0.0;  ///< Remaining fingertip error, metres.
+    double pitch = 0.0;          ///< Pitch the solution actually has, radians.
+    double pitchTarget = 0.0;    ///< Pitch it aimed for after giving way (= request if reachable).
+    bool pitchLimited = false;   ///< The requested pitch wasn't reachable here.
+  };
+
   /// Solves inverse kinematics from the current pose without moving anything.
-  /// Returns the remaining fingertip error in metres.
+  /// Position first; if `wrist.pitch` is set, pitch second (in the spare joint
+  /// motion that doesn't move the fingertip); roll is set directly.
+  IkResult solveIk(const Vec3& target, const WristTarget& wrist,
+                   std::vector<double>& jointsOut, int iterations = -1) const;
+  /// Position only (the Dash 2 form). Returns the remaining fingertip error in metres.
   double solveIk(const Vec3& target, std::vector<double>& jointsOut) const;
+
+  /// Claw pitch for the given scratch/real state (radians).
+  double pitchOf(const mjData_* data) const;
+
+ private:
+  /// One damped-least-squares solve from the current pose (no position check).
+  IkResult solveCore(const Vec3& target, std::optional<float> pitch, float roll,
+                     std::vector<double>& jointsOut, int iterations) const;
+
+ public:
 
  private:
   static constexpr int kArmJoints = 5;  // pan, lift, elbow, wrist flex, wrist roll
@@ -59,6 +81,13 @@ class MujocoArm final : public ArmBackend {
   std::vector<int> skeletonBodies_;
   Vec3 target_;
   float opening_ = 1.f;  ///< Commanded jaw opening, 0..1.
+  WristTarget wrist_;
+  bool pitchLimited_ = false;
+  /// Last frame's IK solution. Each frame's solve starts from it rather than
+  /// from the physical pose (which lags behind the servos), so the iterations
+  /// add up across frames instead of restarting every time.
+  std::vector<double> ikSeed_;
+  int liftJoint_ = -1;   ///< shoulder_lift: its axis is the claw's pitch axis.
   double time_ = 0.0;
 };
 

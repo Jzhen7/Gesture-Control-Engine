@@ -2,6 +2,7 @@
 // actually gets where it is told to go.
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -145,4 +146,151 @@ TEST_CASE("sim: a missing model gives a clear error") {
     threw = std::string(e.what()).find("download_arm") != std::string::npos;
   }
   CHECK(threw);
+}
+
+// ---------------------------------------------------------------------------
+// Dash 4: claw orientation
+// ---------------------------------------------------------------------------
+
+TEST_CASE("sim: pitch reachability across the workspace (report)") {
+  // Not a pass/fail test of the numbers themselves: it prints the table used
+  // in docs/DASH-4_CLAW_ORIENTATION.md, and checks position always wins.
+  const ArmSettings s = settings();
+  MujocoArm arm(s);
+  const WorkspaceBox box{s.workspaceMin, s.workspaceMax};
+  std::cerr << "  pitch | reached (pos<2mm, pitch<2deg) /125 | worst pos mm | worst pitch err deg\n";
+  double worstPosOverall = 0.0, freeWorst = 0.0;
+  for (int deg = -90; deg <= 45; deg += 15) {
+    int ok = 0;
+    double worstPos = 0.0, worstPitch = 0.0;
+    for (int i = 0; i < 5; ++i) {
+      for (int j = 0; j < 5; ++j) {
+        for (int k = 0; k < 5; ++k) {
+          const Vec3 f{static_cast<float>(i) / 4.f, static_cast<float>(j) / 4.f,
+                       static_cast<float>(k) / 4.f};
+          const Vec3 t{box.min.x + (box.max.x - box.min.x) * f.x,
+                       box.min.y + (box.max.y - box.min.y) * f.y,
+                       box.min.z + (box.max.z - box.min.z) * f.z};
+          WristTarget w;
+          w.pitch = static_cast<float>(deg) * 3.14159265f / 180.f;
+          std::vector<double> q;
+          const auto r = arm.solveIk(t, w, q, 300);
+          if (deg == -90) freeWorst = std::max(freeWorst, arm.solveIk(t, WristTarget{}, q, 300).positionError);
+          const double pitchErr = std::fabs(r.pitch - *w.pitch) * 180.0 / 3.14159265;
+          worstPos = std::max(worstPos, r.positionError);
+          worstPitch = std::max(worstPitch, pitchErr);
+          ok += (r.positionError < 0.002 && pitchErr < 2.0);
+        }
+      }
+    }
+    worstPosOverall = std::max(worstPosOverall, worstPos);
+    char buf[160];
+    std::snprintf(buf, sizeof(buf), "  %5d | %3d | %7.2f | %6.1f\n", deg, ok, worstPos * 1000.0,
+                  worstPitch);
+    std::cerr << buf;
+  }
+  std::cerr << "  position-only worst error: " << freeWorst * 1000.0 << " mm\n";
+  CHECK(worstPosOverall < 0.005);  // position is never sacrificed for pitch
+}
+
+
+namespace {
+constexpr float kDegSim = 3.14159265f / 180.f;
+void run(MujocoArm& arm, double seconds) {
+  for (int i = 0; i < static_cast<int>(seconds * 30.0); ++i) arm.advance(1.0 / 30.0);
+}
+}  // namespace
+
+TEST_CASE("sim: claw holds the commanded pitch at the workspace centre") {
+  const ArmSettings s = settings();
+  MujocoArm arm(s);
+  const WorkspaceBox box{s.workspaceMin, s.workspaceMax};
+  arm.setTarget(box.center());
+  for (float deg : {-35.f, -60.f, -15.f}) {
+    WristTarget w;
+    w.pitch = deg * kDegSim;
+    arm.setWristTarget(w);
+    run(arm, 1.5);
+    const ArmState st = arm.state();
+    std::cerr << "  pitch " << deg << " -> " << st.pitch / kDegSim << " deg, reach error "
+              << (st.gripper - box.center()).norm() * 1000.f << " mm\n";
+    CHECK_NEAR(st.pitch, *w.pitch, 3 * kDegSim);
+    CHECK((st.gripper - box.center()).norm() < 0.01f);
+  }
+}
+
+TEST_CASE("sim: roll turns the claw about its own pointing axis, right-hand rule") {
+  MujocoArm arm(settings());
+  WristTarget w;
+  w.pitch = -35 * kDegSim;
+  arm.setWristTarget(w);
+  run(arm, 1.0);
+  const float pitchBefore = arm.state().pitch;
+  const Vec3 up0 = arm.state().clawUp;
+  w.roll = 45 * kDegSim;
+  arm.setWristTarget(w);
+  run(arm, 1.0);
+  const ArmState st = arm.state();
+  CHECK_NEAR(st.roll, 45 * kDegSim, 2 * kDegSim);
+  // Physically: the jaw direction turned +45 deg about the pointing axis
+  // (right-hand rule), not just the joint reading.
+  const float turned = std::atan2(dot(cross(up0, st.clawUp), st.clawAxis), dot(up0, st.clawUp));
+  std::cerr << "  roll +45 deg turned the jaws " << turned / kDegSim << " deg about the claw axis\n";
+  CHECK_NEAR(turned, 45 * kDegSim, 3 * kDegSim);
+  CHECK_NEAR(st.pitch, pitchBefore, 3 * kDegSim);  // rolling doesn't change pitch
+}
+
+TEST_CASE("sim: out-of-range roll is clamped to the joint") {
+  MujocoArm arm(settings());
+  WristTarget w;
+  w.roll = 4.f;  // beyond the ~157 deg joint limit
+  arm.setWristTarget(w);
+  run(arm, 2.0);
+  CHECK(arm.state().roll < 2.8f);
+}
+
+TEST_CASE("sim: an unreachable pitch gives way, the position doesn't") {
+  const ArmSettings s = settings();
+  MujocoArm arm(s);
+  const Vec3 nearTop{s.workspaceMin.x, 0.f, s.workspaceMax.z};  // close in and high up
+  WristTarget w;
+  w.pitch = -90 * kDegSim;  // straight down: not possible there
+  std::vector<double> q;
+  const auto r = arm.solveIk(nearTop, w, q, 300);
+  std::cerr << "  asked -90 deg, got " << r.pitch / kDegSim << " deg, position error "
+            << r.positionError * 1000.0 << " mm\n";
+  CHECK(r.pitchLimited);
+  CHECK(r.positionError < 0.005);
+}
+
+TEST_CASE("sim: tracking moving targets with moving pitch and roll") {
+  const ArmSettings s = settings();
+  MujocoArm arm(s);
+  const WorkspaceBox box{s.workspaceMin, s.workspaceMax};
+  unsigned seed = 7;
+  auto rnd = [&]() {
+    seed = seed * 1103515245u + 12345u;
+    return static_cast<float>((seed >> 8) & 0xFFFF) / 65535.f;
+  };
+  double worstPos = 0.0, worstPitch = 0.0;
+  for (int k = 0; k < 30; ++k) {
+    const Vec3 target{box.min.x + (box.max.x - box.min.x) * rnd(),
+                      box.min.y + (box.max.y - box.min.y) * rnd(),
+                      box.min.z + (box.max.z - box.min.z) * rnd()};
+    WristTarget w;
+    w.pitch = (-60.f + 40.f * rnd()) * kDegSim;  // -60..-20 deg
+    w.roll = (-90.f + 180.f * rnd()) * kDegSim;
+    arm.setTarget(target);
+    arm.setWristTarget(w);
+    run(arm, 1.5);
+    std::vector<double> q;
+    const auto ik = arm.solveIk(target, w, q);
+    const ArmState st = arm.state();
+    worstPos = std::max(worstPos, static_cast<double>((st.gripper - target).norm()));
+    if (!ik.pitchLimited) worstPitch = std::max(worstPitch, std::fabs(static_cast<double>(st.pitch - *w.pitch)));
+  }
+  std::cerr << "  worst reach " << worstPos * 1000.0 << " mm, worst pitch (where reachable) "
+            << worstPitch / kDegSim << " deg\n";
+  CHECK(worstPos < 0.01);
+  CHECK(worstPitch < 5 * kDegSim);
 }

@@ -36,6 +36,8 @@ struct ArmStatus {
   bool clawPose = false;       ///< Fingers straight enough to steer the gripper this frame.
   float handOpenness = 0.f;    ///< Raw claw openness this frame (0 = tips together, 1 = open).
   float gripperOpening = 1.f;  ///< Opening sent to the arm (0 = closed, 1 = open).
+  HandAngles handAngles;       ///< Dash 4: hand rotation since calibration (raw, radians).
+  WristTarget wrist;           ///< Dash 4: claw pitch/roll sent to the arm (filtered, limited).
   std::optional<HandSpaceCalibration> calibration;
 };
 
@@ -57,6 +59,9 @@ class ArmController {
  private:
   void track(const HandLandmarks& hand, Gesture g, double tMs);
   void grip(const HandLandmarks& hand, Gesture g, double tSeconds);
+  void orient(const HandLandmarks& hand, double tSeconds);
+  /// The wrist target for the calibration pose (neutral pitch, no roll).
+  WristTarget neutralWrist() const;
 
   AppConfig cfg_;
   ArmBackend& arm_;
@@ -66,6 +71,10 @@ class ArmController {
   HandCalibrator calibrator_;
   std::array<OneEuroFilter, 3> filters_;
   OneEuroFilter gripFilter_;
+  OneEuroFilter flexFilter_;
+  OneEuroFilter twistFilter_;
+  bool hasWrist_ = false;
+  double lastWristT_ = 0.0;
   bool hasTarget_ = false;
   double lastT_ = 0.0;
   ArmStatus status_;

@@ -32,6 +32,9 @@ class ArmApp final : public App {
                       ? "binary (fist = closed, anything else = open)"
                       : "proportional (straight fingers: tips together = closed, spread = open)")
               << "\n"
+              << "claw orientation: "
+              << (cfg.arm.orientation ? "on (tip your hand = pitch, twist it = roll)" : "off")
+              << "\n"
               << "keys: c = recalibrate, a/d = rotate view, q = quit\n";
     controller_.recalibrate();
   }
@@ -74,6 +77,13 @@ class ArmApp final : public App {
       std::snprintf(buf, sizeof(buf), "hand  x %+.2f  y %+.2f  depth %+.2f", s.handPosition.x,
                     s.handPosition.y, s.handPosition.z);
       lines.emplace_back(buf);
+      if (cfg_.arm.orientation && s.handVisible) {
+        constexpr float kToDeg = 57.29578f;
+        std::snprintf(buf, sizeof(buf), "flex %+4.0f  twist %+4.0f  side %+4.0f deg",
+                      s.handAngles.flex * kToDeg, s.handAngles.twist * kToDeg,
+                      s.handAngles.side * kToDeg);
+        lines.emplace_back(buf);
+      }
     }
     lines.emplace_back("c recalibrate | a/d rotate view | q quit");
     ui::drawTextPanel(frame, lines);

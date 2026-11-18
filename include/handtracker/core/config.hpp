@@ -91,6 +91,22 @@ struct ArmSettings {
   int ikIterations = 10;            ///< IK refinement steps per frame.
   float ikDamping = 0.05f;          ///< IK damping: higher = smoother near singularities.
   float ikNullGain = 0.05f;         ///< Pull toward the ready pose with the arm's spare freedom.
+  float ikPitchDamping = 0.1f;      ///< Damping of the pitch task (higher = gentler near limits).
+  float ikPitchStep = 0.1f;         ///< Largest pitch correction per IK iteration (radians).
+  int ikPitchSearchSteps = 6;       ///< Bisection steps when a pitch isn't reachable (1/64 resolution).
+
+  // Dash 4: claw orientation from hand orientation. Angles are stored in
+  // radians; arm.ini takes degrees (the *_deg keys).
+  bool orientation = true;          ///< Follow the hand's flex (pitch) and twist (roll).
+  float neutralPitch = -0.611f;     ///< Claw pitch for the calibration pose (-35 deg).
+  float pitchGain = 1.0f;           ///< Claw pitch change per radian of hand flex.
+  float rollGain = 1.0f;            ///< Claw roll change per radian of hand twist.
+  float pitchMin = -1.571f;         ///< Lowest claw pitch asked for (-90 deg, straight down).
+  float pitchMax = 0.524f;          ///< Highest claw pitch asked for (+30 deg).
+  float rollLimit = 2.618f;         ///< Claw roll limited to +/- this (150 deg; joint allows ~157).
+  double orientMinCutoff = 1.0;     ///< One Euro filter on hand flex/twist (Hz).
+  double orientBeta = 0.5;          ///< One Euro speed coefficient (radians).
+  float maxAngularSpeed = 3.14f;    ///< Fastest the pitch/roll target may turn (180 deg/s).
 };
 
 struct AppConfig {

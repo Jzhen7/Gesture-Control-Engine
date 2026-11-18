@@ -12,14 +12,24 @@ ArmController::ArmController(const AppConfig& cfg, ArmBackend& arm, MessageSink 
       sink_(std::move(sink)),
       box_{cfg.arm.workspaceMin, cfg.arm.workspaceMax},
       smoother_(cfg.smoothingFrames),
-      calibrator_(cfg.arm.calibrationMs, cfg.arm.calibrationMaxMotion),
+      calibrator_(cfg.arm.calibrationMs, cfg.arm.calibrationMaxMotion, cfg.arm.hand.tiltCorrection),
       filters_{OneEuroFilter(cfg.arm.minCutoff, cfg.arm.beta),
                OneEuroFilter(cfg.arm.minCutoff, cfg.arm.beta),
                OneEuroFilter(cfg.arm.minCutoff, cfg.arm.beta)},
-      gripFilter_(cfg.arm.gripMinCutoff, cfg.arm.gripBeta) {
+      gripFilter_(cfg.arm.gripMinCutoff, cfg.arm.gripBeta),
+      flexFilter_(cfg.arm.orientMinCutoff, cfg.arm.orientBeta),
+      twistFilter_(cfg.arm.orientMinCutoff, cfg.arm.orientBeta) {
   status_.target = box_.center();
   arm_.setTarget(status_.target);  // Start in the middle of the workspace, gripper open.
   arm_.setGripperOpening(1.f);
+  status_.wrist = neutralWrist();
+  arm_.setWristTarget(status_.wrist);
+}
+
+WristTarget ArmController::neutralWrist() const {
+  WristTarget w;
+  if (cfg_.arm.orientation) w.pitch = std::clamp(cfg_.arm.neutralPitch, cfg_.arm.pitchMin, cfg_.arm.pitchMax);
+  return w;
 }
 
 void ArmController::recalibrate() {
@@ -32,6 +42,13 @@ void ArmController::recalibrate() {
 void ArmController::setCalibration(const HandSpaceCalibration& cal) {
   status_.calibration = cal;
   status_.phase = Phase::Tracking;
+  // The calibration pose *is* the neutral orientation, so start from it.
+  flexFilter_.reset();
+  twistFilter_.reset();
+  hasWrist_ = false;
+  status_.handAngles = {};
+  status_.wrist = neutralWrist();
+  arm_.setWristTarget(status_.wrist);
 }
 
 void ArmController::update(const std::optional<HandLandmarks>& hand, double tMs) {
@@ -75,6 +92,38 @@ void ArmController::track(const HandLandmarks& hand, Gesture g, double tMs) {
   arm_.setTarget(status_.target);
 
   grip(hand, g, t);
+  orient(hand, t);
+}
+
+void ArmController::orient(const HandLandmarks& hand, double t) {
+  if (!cfg_.arm.orientation) return;
+  const auto& cal = *status_.calibration;
+  status_.handAngles = handAngles(handFrame(hand, cal.frontSign), cal.frame);
+
+  // 1. Smooth the two angles we use (side bend is measured but has nowhere to go:
+  //    this arm can't yaw the claw independently of where it is).
+  const double flex = flexFilter_.filter(status_.handAngles.flex, t);
+  const double twist = twistFilter_.filter(status_.handAngles.twist, t);
+
+  // 2. Map: tipping the fingers towards the camera tips the claw down; twisting
+  //    the hand twists the claw the same way about its own pointing axis.
+  WristTarget want;
+  want.pitch = std::clamp(cfg_.arm.neutralPitch - cfg_.arm.pitchGain * static_cast<float>(flex),
+                          cfg_.arm.pitchMin, cfg_.arm.pitchMax);
+  want.roll = std::clamp(cfg_.arm.rollGain * static_cast<float>(twist), -cfg_.arm.rollLimit,
+                         cfg_.arm.rollLimit);
+
+  // 3. Turn-rate limit, like the position speed limit: a mis-tracked frame
+  //    can't spin the wrist round in one go.
+  if (hasWrist_ && status_.wrist.pitch) {
+    const float maxStep = cfg_.arm.maxAngularSpeed * static_cast<float>(std::max(0.0, t - lastWristT_));
+    want.pitch = *status_.wrist.pitch + std::clamp(*want.pitch - *status_.wrist.pitch, -maxStep, maxStep);
+    want.roll = status_.wrist.roll + std::clamp(want.roll - status_.wrist.roll, -maxStep, maxStep);
+  }
+  hasWrist_ = true;
+  lastWristT_ = t;
+  status_.wrist = want;
+  arm_.setWristTarget(want);
 }
 
 void ArmController::grip(const HandLandmarks& hand, Gesture g, double t) {
