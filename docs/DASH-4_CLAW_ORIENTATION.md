@@ -529,16 +529,31 @@ throwaway build compared the Dash 3 and Dash 4 solvers (section 6.6).
 
 ## 16. Git and next steps
 
-- Branch **`feature/claw-orientation`**, from `main` after the Dash 3 merge.
-  Commits are authored as **Jacob**, with no `Co-Authored-By` line. **Not
-  pushed or merged yet.**
+- **Before Dash 4:** Dash 3 (`feature/live-claw`) was merged into `main` and
+  pushed to GitHub (merge commit `93a2222`).
+- **Dash 4:** branch **`feature/claw-orientation`**, from `main` after that
+  merge, in three commits: `4e68baf` (code and tests), `ea0cc85` (this doc
+  and the other docs), and a final doc update. It is then **merged into
+  `main` and pushed**.
+- Every commit is authored as **Jacob**, with no `Co-Authored-By` line.
 - Your own note at the end of `FUTURE_FEATURES.md` ("Add physics engine and
   interactable objects in the simulation") is included unchanged in the docs
   commit.
+- **The GitHub repository has moved** to `Jzhen7/Gesture-Control-Engine`.
+  Pushes still work through GitHub's redirect. The local `origin` URL hasn't
+  been changed; `git remote set-url origin
+  https://github.com/Jzhen7/Gesture-Control-Engine.git` would update it.
 
-**Next:**
-1. Live test: calibrate, then watch `flex / twist` on the camera panel and
-   `pitch / roll` in the 3D view. Fix directions with negative gains (14.2).
-2. Tune `neutral_pitch_deg` and the gains for comfort.
-3. Decide on 14.7 (wrist-anchored position) after feeling it.
-4. Merge to `main` when happy.
+**Next (live test checklist):**
+1. Calibrate (open palm, facing the camera, fingers up, 2 s), then watch
+   `flex / twist` on the camera panel and `pitch / roll` in the 3D view.
+2. **If tipping works backwards, set `pitch_gain = -1`; if twisting feels
+   mirrored, set `roll_gain = -1`.** The direction of the model's depth axis
+   is the one sign that couldn't be confirmed without a camera (14.2).
+3. Expect about **±60–70° of comfortable roll**: past that the hand is
+   edge-on to the camera and tracking degrades. Raise `roll_gain` for more
+   claw roll from less hand twist (14.4).
+4. Tipping the hand 30° still moves the arm about **5 mm** (palm centre
+   swinging). Removing it (wrist-anchored position) would change how
+   position feels, so judge it in person (14.7).
+5. Tune `neutral_pitch_deg` and the gains for comfort.
