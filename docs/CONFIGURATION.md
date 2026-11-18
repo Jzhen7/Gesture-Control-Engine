@@ -106,6 +106,15 @@ executable's directory and its parents.
 | `ik_iterations` | `10` | IK refinement steps per frame |
 | `ik_damping` | `0.05` | IK damping (stability near full stretch) |
 | `ik_null_gain` | `0.05` | Pull toward a comfortable pose; keep it above 0 |
+| `ik_pitch_damping`, `ik_pitch_step`, `ik_pitch_search_steps` | `0.1`, `0.1`, `6` | Pitch task in the IK: damping, largest step per iteration (radians), bisection steps when a pitch isn't reachable |
+| `orientation` | `true` | Dash 4: hand flex drives claw pitch, hand twist drives claw roll |
+| `neutral_pitch_deg` | `-35` | Claw pitch for the calibration pose (0 = level, -90 = straight down) |
+| `pitch_gain`, `roll_gain` | `1.0`, `1.0` | Claw degrees per hand degree (negative reverses the direction) |
+| `pitch_min_deg`, `pitch_max_deg` | `-90`, `30` | Range of claw pitch that may be requested |
+| `roll_limit_deg` | `150` | Claw roll is limited to plus/minus this |
+| `orient_min_cutoff`, `orient_beta` | `1.0`, `0.5` | One Euro filter on the hand's flex and twist |
+| `max_angular_speed_deg` | `180` | Fastest the pitch/roll target may turn (degrees/second) |
+| `tilt_correction` | `true` | Correct palm size (depth) for hand tilt using the model's 3D points |
 
 Vectors are three numbers separated by spaces or commas.
 

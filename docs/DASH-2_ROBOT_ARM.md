@@ -8,6 +8,11 @@
 > straight-fingered "claw" instead of a fist. See
 > [DASH-3_LIVE_CLAW.md](DASH-3_LIVE_CLAW.md). The fist rule below is still
 > available as `gripper_mode = binary`.
+>
+> **Update (Dash 4):** the claw's pitch and roll now follow the hand, the IK
+> gained a pitch task, joint-limit handling and warm starts, and depth is
+> corrected for hand tilt (the limitation in section 4). See
+> [DASH-4_CLAW_ORIENTATION.md](DASH-4_CLAW_ORIENTATION.md).
 
 **Status:** milestone 1 (MVP) is complete: implemented, tested in simulation,
 and run live with a webcam on Windows 11 (MSVC 2022, OpenCV 4.10, about 28 fps).

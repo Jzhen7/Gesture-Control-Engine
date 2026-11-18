@@ -156,4 +156,6 @@ The engine side gained `core/hand_space.*` (calibrated 3D hand position, and
 since Dash 3 the claw measurements: fingertip spread and finger straightness).
 The full data flow, coordinate frames, IK and simulator details are in
 [DASH-2_ROBOT_ARM.md](DASH-2_ROBOT_ARM.md); proportional gripper control is in
-[DASH-3_LIVE_CLAW.md](DASH-3_LIVE_CLAW.md).
+[DASH-3_LIVE_CLAW.md](DASH-3_LIVE_CLAW.md); claw orientation (`core/hand_pose.*`,
+`WristTarget`, prioritised pitch IK) is in
+[DASH-4_CLAW_ORIENTATION.md](DASH-4_CLAW_ORIENTATION.md).

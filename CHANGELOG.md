@@ -7,6 +7,29 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Claw orientation** (Dash 4): tipping the hand pitches the claw, twisting
+  it rolls the claw, relative to the calibration pose. Side bend is measured
+  but unused (the 5-joint arm has no free yaw).
+- Engine: `core/hand_pose.*`: arm-space hand frame, swing-twist
+  flex/twist/side angles, palm in-plane fraction. Calibration records the
+  neutral hand frame.
+- IK: pitch as a null-space task with joint-limit handling, enforced position
+  priority (bisects to the nearest reachable pitch), warm start between frames.
+- `ArmBackend::setWristTarget()` / `WristTarget`; `ArmState` reports pitch,
+  roll, `pitchLimited` and the claw's axes. 3D view draws the claw's real
+  orientation.
+- `[arm]` keys: `orientation`, `neutral_pitch_deg`, `pitch_gain`, `roll_gain`,
+  `pitch_min_deg`, `pitch_max_deg`, `roll_limit_deg`, `orient_min_cutoff`,
+  `orient_beta`, `max_angular_speed_deg`, `tilt_correction`,
+  `ik_pitch_damping`, `ik_pitch_step`, `ik_pitch_search_steps`.
+
+### Fixed
+- Tipping the hand no longer reads as moving away (palm size is corrected
+  for tilt using the 3D points).
+- Position-only IK no longer drifts into a joint limit over long solves
+  (worst 6.4 mm → 2.5 mm at 300 iterations).
+
+### Added (Dash 3)
 - **Live claw control** (Dash 3): the gripper's opening follows the hand
   continuously (0-100%). Close it by bringing straight fingers' tips together in
   front of the palm; spread them to open. Curled fingers, including a fist,
